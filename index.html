@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>默契大考验 · 异地情侣版</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: linear-gradient(160deg, #ffd1dc 0%, #ffe4ec 45%, #fff0f5 100%);
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; overflow-x: hidden;
+    padding: 16px;
+  }
+  .heart-bg { position: fixed; bottom: -40px; opacity: .45; pointer-events: none; z-index: 0;
+    animation: floatUp linear infinite; }
+  @keyframes floatUp {
+    0% { transform: translateY(0) rotate(0deg); opacity: 0; }
+    10% { opacity: .5; }
+    100% { transform: translateY(-115vh) rotate(360deg); opacity: 0; }
+  }
+
+  .card {
+    position: relative; z-index: 1; width: 100%; max-width: 440px;
+    background: rgba(255,255,255,.94); border-radius: 26px;
+    box-shadow: 0 16px 50px rgba(255,105,135,.28);
+    padding: 30px 22px 26px; text-align: center;
+    animation: pop .4s ease;
+  }
+  @keyframes pop { from { transform: scale(.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+  h1 { font-size: 26px; color: #e75480; margin-bottom: 6px; }
+  .subtitle { color: #b0708a; font-size: 13.5px; line-height: 1.7; margin-bottom: 20px; }
+
+  .name-row { display: flex; gap: 10px; margin-bottom: 16px; }
+  .name-box { flex: 1; }
+  .name-box label { display: block; font-size: 12px; color: #b0708a; margin-bottom: 4px; }
+  input[type=text] {
+    width: 100%; padding: 12px; border: 2px solid #ffd1dc; border-radius: 14px;
+    font-size: 16px; text-align: center; outline: none; background: #fff;
+  }
+  input[type=text]:focus { border-color: #ff6b9d; }
+
+  .btn {
+    display: block; width: 100%; margin-top: 12px; padding: 15px;
+    border: none; border-radius: 999px; cursor: pointer;
+    font-size: 16.5px; font-weight: bold; color: #fff;
+    background: linear-gradient(90deg, #ff6b9d, #ff9a8b);
+    box-shadow: 0 8px 20px rgba(255,107,157,.35);
+    transition: transform .12s;
+  }
+  .btn:active { transform: scale(.96); }
+  .btn.ghost {
+    background: #fff; color: #e75480;
+    border: 2px solid #ffb3c9; box-shadow: none;
+  }
+
+  .step-bar { font-size: 13px; color: #b0708a; margin-bottom: 4px; }
+  .score-pill { display: inline-block; background: #fff0f5; border-radius: 999px;
+    padding: 5px 16px; color: #e75480; font-weight: bold; font-size: 14px; margin-bottom: 14px; }
+  .question-tip { font-size: 14px; color: #b0708a; margin-bottom: 12px; }
+  .question { font-size: 21px; color: #c94070; font-weight: bold; margin-bottom: 20px; min-height: 30px; }
+
+  .opt {
+    display: block; width: 100%; padding: 20px; margin-bottom: 14px;
+    background: #fff; border: 3px solid #ffd1dc; border-radius: 20px;
+    font-size: 19px; font-weight: bold; color: #7a4055; cursor: pointer;
+    transition: all .15s; user-select: none;
+  }
+  .opt:active { transform: scale(.97); }
+  .opt.picked { border-color: #ff6b9d; background: #ffe0ea; }
+
+  .code-box {
+    background: #fff0f5; border: 2px dashed #ffb3c9; border-radius: 18px;
+    padding: 18px; margin: 16px 0;
+  }
+  .code-text { font-size: 34px; font-weight: bold; letter-spacing: 6px; color: #e75480;
+    font-family: Consolas, monospace; }
+  .code-tip { font-size: 12.5px; color: #b0708a; margin-top: 8px; line-height: 1.6; }
+
+  .result-emoji { font-size: 56px; }
+  .result-title { font-size: 24px; color: #e75480; margin: 6px 0 2px; font-weight: bold; }
+  .result-score { font-size: 15px; color: #7a4055; margin-bottom: 14px; }
+  .result-score b { color: #e75480; font-size: 22px; }
+
+  .cmp-list { text-align: left; max-height: 260px; overflow-y: auto; margin: 10px 0; }
+  .cmp-item { background: #fff; border-radius: 14px; padding: 10px 12px; margin-bottom: 8px;
+    font-size: 13.5px; border: 2px solid #f3e0e6; }
+  .cmp-item.same { border-color: #ff9dbd; background: #fff0f5; }
+  .cmp-q { font-weight: bold; color: #7a4055; margin-bottom: 4px; }
+  .cmp-a { color: #a06080; }
+  .cmp-a b { color: #e75480; }
+
+  .burst { position: fixed; font-size: 26px; pointer-events: none; z-index: 99;
+    animation: burstFly .9s ease-out forwards; }
+  @keyframes burstFly {
+    0% { transform: translate(0,0) scale(.5); opacity: 1; }
+    100% { transform: translate(var(--dx), var(--dy)) scale(1.4); opacity: 0; }
+  }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+
+<!-- 首页 -->
+<div class="card" id="home">
+  <h1>💕 默契大考验</h1>
+  <p class="subtitle">异地也能玩：一方先答题生成密令<br>另一方输入密令答同样的题，比比默契值</p>
+  <div class="name-row">
+    <div class="name-box"><label>🧑 我的昵称</label><input type="text" id="nameMe" maxlength="6" placeholder="我"></div>
+    <div class="name-box"><label>👩 对方昵称</label><input type="text" id="nameTa" maxlength="6" placeholder="TA"></div>
+  </div>
+  <button class="btn" onclick="startAsFirst()">① 我先答题，生成密令</button>
+  <button class="btn ghost" onclick="gotoInput('answer')">② 输入密令，开始作答</button>
+  <button class="btn ghost" onclick="gotoInput('review')">③ 输入回执，查看结果</button>
+</div>
+
+<!-- 密令输入 -->
+<div class="card hidden" id="inputScreen">
+  <h1 id="inputTitle">输入密令</h1>
+  <p class="subtitle" id="inputTip"></p>
+  <input type="text" id="codeInput" maxlength="7" placeholder="密令" style="text-transform:uppercase;letter-spacing:6px;font-size:24px;font-weight:bold;color:#e75480;font-family:Consolas,monospace">
+  <button class="btn" onclick="submitCode()">确认</button>
+  <button class="btn ghost" onclick="backHome()">返回</button>
+</div>
+
+<!-- 答题 -->
+<div class="card hidden" id="quiz">
+  <div class="step-bar" id="stepBar">第 1 / 10 题</div>
+  <span class="score-pill">💖 默契值 <span id="score">0</span></span>
+  <div class="question-tip" id="whoTip"></div>
+  <div class="question">选哪个？</div>
+  <div class="opt" id="opt0" onclick="pick(0)"></div>
+  <div class="opt" id="opt1" onclick="pick(1)"></div>
+</div>
+
+<!-- 先答方完成：生成密令 -->
+<div class="card hidden" id="codeScreen">
+  <h1>✅ 答题完成！</h1>
+  <p class="subtitle">把下面的密令发给 TA<br>TA 答完题就能看到你们的默契值</p>
+  <div class="code-box">
+    <div class="code-text" id="myCode"></div>
+    <div class="code-tip">对方打开本页面 → 选「② 输入密令」<br>输入这串字符即可</div>
+  </div>
+  <button class="btn" onclick="copyCode()">复制密令</button>
+  <button class="btn ghost" onclick="location.reload()">回到首页</button>
+</div>
+
+<!-- 结果 -->
+<div class="card hidden" id="result">
+  <div class="result-emoji" id="rEmoji"></div>
+  <div class="result-title" id="rTitle"></div>
+  <div class="result-score" id="rScore"></div>
+  <div class="cmp-list" id="cmpList"></div>
+  <div id="receiptArea"></div>
+  <button class="btn ghost" onclick="location.reload()">再玩一局</button>
+</div>
+
+<script>
+const QUESTIONS = [
+  ["火锅","烧烤"],["奶茶","咖啡"],["去海边","去山里"],["早起","赖床"],
+  ["养猫","养狗"],["甜粽子","咸粽子"],["在家看电影","去电影院"],["夏天","冬天"],
+  ["消息秒回","攒着一起回"],["计划好再旅行","说走就走"],["吃辣","不吃辣"],
+  ["实用的礼物","浪漫的礼物"],["出门逛街","宅在家里"],["日料","西餐"],
+  ["恐怖片","喜剧片"],["雨天宅家","雨天出门踩水"],["先道歉","先讲道理"],
+  ["惊喜派对","二人烛光晚餐"],["努力存钱","及时行乐"],["拥抱","亲亲"]
+];
+const TOTAL = 10;
+
+let S = {}; // 状态
+const $ = id => document.getElementById(id);
+
+// 漂浮爱心
+["💗","💖","💕","🌸","💝"].forEach((h,i) => {}); 
+for (let i = 0; i < 10; i++) {
+  const h = document.createElement("span");
+  h.className = "heart-bg";
+  h.textContent = ["💗","💖","💕","🌸","💝"][i % 5];
+  h.style.left = Math.random() * 100 + "vw";
+  h.style.fontSize = 16 + Math.random() * 20 + "px";
+  h.style.animationDuration = 9 + Math.random() * 9 + "s";
+  h.style.animationDelay = Math.random() * 9 + "s";
+  document.body.appendChild(h);
+}
+
+function show(id) {
+  ["home","inputScreen","quiz","codeScreen","result"].forEach(s => $(s).classList.add("hidden"));
+  $(id).classList.remove("hidden");
+}
+function backHome(){ show("home"); }
+function getNames() {
+  return [ $("nameMe").value.trim() || "我", $("nameTa").value.trim() || "TA" ];
+}
+
+// 带种子随机洗牌，保证双方题目一致
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function seededQuestions(seed) {
+  const arr = QUESTIONS.map((_,i)=>i), rnd = mulberry32(seed);
+  for (let i = arr.length-1; i>0; i--) { const j = Math.floor(rnd()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; }
+  return arr.slice(0, TOTAL);
+}
+
+// 密令：A 卷 = seed(16bit)+答案(10bit) → 6 位 base36
+function encodeA(seed, bits){ return (seed*1024+bits).toString(36).toUpperCase().padStart(6,"0"); }
+function decodeA(code){ const v=parseInt(code.toLowerCase(),36); if(isNaN(v)||v<0||v>=33554432) return null; return {seed: v>>10, bits: v&1023}; }
+// 回执：seed(15)+A答案(10)+B答案(10) = 35bit → 6 位 base36 可能不够，用 7 位
+function encodeB(seed,aBits,bBits){ return (((seed&32767)*1024+aBits)*1024+bBits).toString(36).toUpperCase(); }
+function decodeB(code){ const v=parseInt(code.toLowerCase(),36); if(isNaN(v)||v<0||v>=2176782336) return null;
+  const bBits=v&1023, aBits=(v>>10)&1023, seed=(v>>20)&32767; if(seed>=32768) return null; return {seed,aBits,bBits}; }
+
+let inputMode = "answer";
+function gotoInput(mode) {
+  inputMode = mode;
+  S.names = getNames();
+  $("inputTitle").textContent = mode === "answer" ? "输入默契密令" : "输入回执密令";
+  $("inputTip").innerHTML = mode === "answer"
+    ? "输入对方发给你的密令<br>你们将回答完全相同的 10 道题"
+    : "对方答完后发给你的回执密令<br>输入即可查看你们的逐题对比";
+  $("codeInput").value = "";
+  show("inputScreen");
+}
+
+function startAsFirst() {
+  S = { names: getNames(), seed: Math.floor(Math.random()*32768), first: true, aBits: 0, idx: 0, score: 0 };
+  S.qs = seededQuestions(S.seed);
+  $("whoTip").textContent = S.names[0] + " 作答中（凭直觉选！）";
+  show("quiz"); renderQ();
+}
+
+function submitCode() {
+  const code = $("codeInput").value.trim();
+  if (inputMode === "answer") {
+    const d = decodeA(code);
+    if (!d) { alert("密令无效，请检查后再试"); return; }
+    S = { names: getNames(), seed: d.seed, aBits: d.bits, first: false, bBits: 0, idx: 0, score: 0 };
+    S.qs = seededQuestions(S.seed);
+    $("whoTip").textContent = S.names[0] + " 作答中（猜猜 TA 选了什么～）";
+    show("quiz"); renderQ();
+  } else {
+    const d = decodeB(code);
+    if (!d) { alert("回执无效，请检查后再试"); return; }
+    S = { names: getNames(), seed: d.seed, aBits: d.aBits, bBits: d.bBits };
+    S.qs = seededQuestions(S.seed);
+    S.score = 0;
+    for (let i=0;i<TOTAL;i++) if(((S.aBits>>i)&1)===((S.bBits>>i)&1)) S.score += 10;
+    showResult(false);
+  }
+}
+
+function renderQ() {
+  const q = QUESTIONS[S.qs[S.idx]];
+  $("stepBar").textContent = `第 ${S.idx+1} / ${TOTAL} 题`;
+  $("opt0").textContent = q[0];
+  $("opt1").textContent = q[1];
+  $("opt0").className = "opt";
+  $("opt1").className = "opt";
+}
+
+function pick(i) {
+  $("opt"+i).classList.add("picked");
+  if (navigator.vibrate) navigator.vibrate(30);
+  setTimeout(() => {
+    if (S.first) {
+      S.aBits |= (i << S.idx);
+    } else {
+      S.bBits |= (i << S.idx);
+      const aPick = (S.aBits >> S.idx) & 1;
+      if (aPick === i) { S.score += 10; $("score").textContent = S.score; burst($("opt"+i)); }
+    }
+    S.idx++;
+    if (S.idx >= TOTAL) finish(); else renderQ();
+  }, 220);
+}
+
+function finish() {
+  if (S.first) {
+    $("myCode").textContent = encodeA(S.seed, S.aBits);
+    show("codeScreen");
+  } else {
+    showResult(true);
+  }
+}
+
+function copyCode() {
+  const code = $("myCode").textContent;
+  const done = () => { const b = event.target; b.textContent = "已复制 ✅"; setTimeout(()=>b.textContent="复制密令",1500); };
+  if (navigator.clipboard) navigator.clipboard.writeText(code).then(done).catch(()=>prompt("长按复制：", code));
+  else prompt("长按复制：", code);
+}
+
+function burst(el) {
+  const r = el.getBoundingClientRect();
+  for (let i=0;i<7;i++) {
+    const h = document.createElement("span");
+    h.className = "burst";
+    h.textContent = ["💗","💖","💕","✨"][i%4];
+    h.style.left = r.left + r.width/2 + "px";
+    h.style.top = r.top + r.height/2 + "px";
+    h.style.setProperty("--dx",(Math.random()*200-100)+"px");
+    h.style.setProperty("--dy",(Math.random()*-150-30)+"px");
+    document.body.appendChild(h);
+    setTimeout(()=>h.remove(), 900);
+  }
+}
+
+function showResult(showReceipt) {
+  show("result");
+  const pct = S.score;
+  let emoji, title, detail;
+  if (pct >= 90)      { emoji="💞"; title="天生一对！"; detail="异地也挡不住你们共用一个大脑"; }
+  else if (pct >= 70) { emoji="💖"; title="心有灵犀！"; detail="大多数选择都不谋而合，锁死这对 CP"; }
+  else if (pct >= 50) { emoji="💗"; title="磨合中的小情侣"; detail="一半一致一半互补，也挺甜"; }
+  else if (pct >= 30) { emoji="🌱"; title="还需多了解彼此"; detail="今晚视频时就聊这些题吧"; }
+  else                { emoji="🤪"; title="互补型选手"; detail="几乎完全不同，这就是传说中的互补吧"; }
+  $("rEmoji").textContent = emoji;
+  $("rTitle").textContent = title;
+  $("rScore").innerHTML = `${S.names[0]} ❤ ${S.names[1]}<br>默契值 <b>${pct}</b> 分 · ${detail}`;
+
+  const list = $("cmpList"); list.innerHTML = "";
+  // aBits = 先答方，bBits = 后答方
+  const labelA = S.first === false ? S.names[1] : "先答方";
+  const labelB = S.first === false ? S.names[0] : "后答方";
+  for (let i=0;i<TOTAL;i++) {
+    const q = QUESTIONS[S.qs[i]];
+    const a = (S.aBits>>i)&1, b = (S.bBits>>i)&1, same = a===b;
+    const div = document.createElement("div");
+    div.className = "cmp-item" + (same ? " same" : "");
+    div.innerHTML = `<div class="cmp-q">${same?"💗":"💭"} ${q[0]} / ${q[1]}</div>
+      <div class="cmp-a">${labelA}：<b>${q[a]}</b> ｜ ${labelB}：<b>${q[b]}</b></div>`;
+    list.appendChild(div);
+  }
+
+  $("receiptArea").innerHTML = "";
+  if (showReceipt) {
+    const receipt = encodeB(S.seed & 32767, S.aBits, S.bBits);
+    const box = document.createElement("div");
+    box.className = "code-box";
+    box.innerHTML = `<div class="code-text" style="font-size:28px">${receipt}</div>
+      <div class="code-tip">把回执发给先答题的 TA<br>TA 选「③ 输入回执」也能看到这份结果</div>`;
+    $("receiptArea").appendChild(box);
+    const btn = document.createElement("button");
+    btn.className = "btn";
+    btn.textContent = "复制回执密令";
+    btn.onclick = () => {
+      const done = () => { btn.textContent = "已复制 ✅"; setTimeout(()=>btn.textContent="复制回执密令",1500); };
+      if (navigator.clipboard) navigator.clipboard.writeText(receipt).then(done).catch(()=>prompt("长按复制：", receipt));
+      else prompt("长按复制：", receipt);
+    };
+    $("receiptArea").appendChild(btn);
+  }
+}
+</script>
+</body>
+</html>
