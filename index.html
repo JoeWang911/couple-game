@@ -235,23 +235,26 @@ function seededQuestions(seed) {
   return arr.slice(0, TOTAL);
 }
 
-// 密令编码：version(4) + seed(12) + answerBits(10) = 26 bits → 6位 base36
-function encodeA(seed, bits){ return ((CODE_VERSION<<22)|((seed&4095)<<10)|bits).toString(36).toUpperCase().padStart(6,"0"); }
+// 密令编码：version(4位) + seed(12位) + answerBits(10位) → 6位 base36
+// 用算术而非位运算，避免 JS 32位限制
+function encodeA(seed, bits){
+  return Math.floor(CODE_VERSION*4194304 + (seed&4095)*1024 + bits).toString(36).toUpperCase().padStart(6,"0");
+}
 function decodeA(code){
   const v=parseInt(code.toLowerCase(),36);
-  if(isNaN(v)||v<0||v>=2176782336) return null;
-  const ver=(v>>22)&15, seed=(v>>10)&4095, bits=v&1023;
+  if(isNaN(v)||v<0||v>=16777216) return null;
+  const ver=Math.floor(v/4194304)%16, seed=Math.floor(v/1024)%4096, bits=v%1024;
   if(ver!==CODE_VERSION) return {error:"version"};
   return {seed, bits};
 }
-// 回执编码：version(4) + seed(12) + A答案(10) + B答案(10) = 36 bits → 7位 base36
+// 回执编码：version(4位) + seed(12位) + A答案(10位) + B答案(10位) → 7位 base36
 function encodeB(seed,aBits,bBits){
-  return ((CODE_VERSION<<32)|((seed&4095)<<20)|(aBits<<10)|bBits).toString(36).toUpperCase();
+  return Math.floor(CODE_VERSION*4294967296 + (seed&4095)*1048576 + aBits*1024 + bBits).toString(36).toUpperCase();
 }
 function decodeB(code){
   const v=parseInt(code.toLowerCase(),36);
-  if(isNaN(v)||v<0||v>=78364164096) return null;
-  const ver=(v>>32)&15, seed=(v>>20)&4095, aBits=(v>>10)&1023, bBits=v&1023;
+  if(isNaN(v)||v<0||v>=68719476736) return null;
+  const ver=Math.floor(v/4294967296)%16, seed=Math.floor(v/1048576)%4096, aBits=Math.floor(v/1024)%1024, bBits=v%1024;
   if(ver!==CODE_VERSION) return {error:"version"};
   return {seed,aBits,bBits};
 }
