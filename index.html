@@ -197,6 +197,7 @@ const QUESTIONS = [
   ["最喜欢TA笑的样子","最喜欢TA认真的样子"],["先动心的是我","先动心的是TA"]
 ];
 const TOTAL = 10;
+const CODE_VERSION = 1; // 题库版本，每次加题后 +1
 
 let S = {}; // 状态
 const $ = id => document.getElementById(id);
@@ -231,13 +232,26 @@ function seededQuestions(seed) {
   return arr.slice(0, TOTAL);
 }
 
-// 密令：A 卷 = seed(16bit)+答案(10bit) → 6 位 base36
-function encodeA(seed, bits){ return (seed*1024+bits).toString(36).toUpperCase().padStart(6,"0"); }
-function decodeA(code){ const v=parseInt(code.toLowerCase(),36); if(isNaN(v)||v<0||v>=33554432) return null; return {seed: v>>10, bits: v&1023}; }
-// 回执：seed(15)+A答案(10)+B答案(10) = 35bit → 6 位 base36 可能不够，用 7 位
-function encodeB(seed,aBits,bBits){ return (((seed&32767)*1024+aBits)*1024+bBits).toString(36).toUpperCase(); }
-function decodeB(code){ const v=parseInt(code.toLowerCase(),36); if(isNaN(v)||v<0||v>=78364164096) return null;
-  const bBits=v&1023, aBits=(v>>10)&1023, seed=(v>>20)&32767; return {seed,aBits,bBits}; }
+// 密令编码：version(4) + seed(12) + answerBits(10) = 26 bits → 6位 base36
+function encodeA(seed, bits){ return ((CODE_VERSION<<22)|((seed&4095)<<10)|bits).toString(36).toUpperCase().padStart(6,"0"); }
+function decodeA(code){
+  const v=parseInt(code.toLowerCase(),36);
+  if(isNaN(v)||v<0||v>=2176782336) return null;
+  const ver=(v>>22)&15, seed=(v>>10)&4095, bits=v&1023;
+  if(ver!==CODE_VERSION) return {error:"version"};
+  return {seed, bits};
+}
+// 回执编码：version(4) + seed(12) + A答案(10) + B答案(10) = 36 bits → 7位 base36
+function encodeB(seed,aBits,bBits){
+  return ((CODE_VERSION<<32)|((seed&4095)<<20)|(aBits<<10)|bBits).toString(36).toUpperCase();
+}
+function decodeB(code){
+  const v=parseInt(code.toLowerCase(),36);
+  if(isNaN(v)||v<0||v>=78364164096) return null;
+  const ver=(v>>32)&15, seed=(v>>20)&4095, aBits=(v>>10)&1023, bBits=v&1023;
+  if(ver!==CODE_VERSION) return {error:"version"};
+  return {seed,aBits,bBits};
+}
 
 let inputMode = "answer";
 function gotoInput(mode) {
@@ -252,7 +266,7 @@ function gotoInput(mode) {
 }
 
 function startAsFirst() {
-  S = { names: getNames(), seed: Math.floor(Math.random()*32768), first: true, aBits: 0, idx: 0, score: 0 };
+  S = { names: getNames(), seed: Math.floor(Math.random()*4096), first: true, aBits: 0, idx: 0, score: 0 };
   S.qs = seededQuestions(S.seed);
   $("whoTip").textContent = S.names[0] + " 作答中（凭直觉选！）";
   show("quiz"); renderQ();
@@ -263,6 +277,7 @@ function submitCode() {
   if (inputMode === "answer") {
     const d = decodeA(code);
     if (!d) { alert("密令无效，请检查后再试"); return; }
+    if (d.error === "version") { alert("这个密令来自旧版本题库，游戏已更新，请让对方重新生成密令～"); return; }
     S = { names: getNames(), seed: d.seed, aBits: d.bits, first: false, bBits: 0, idx: 0, score: 0 };
     S.qs = seededQuestions(S.seed);
     $("whoTip").textContent = S.names[0] + " 作答中（猜猜 TA 选了什么～）";
@@ -270,6 +285,7 @@ function submitCode() {
   } else {
     const d = decodeB(code);
     if (!d) { alert("回执无效，请检查后再试"); return; }
+    if (d.error === "version") { alert("这个回执来自旧版本题库，游戏已更新，请重新开始一局～"); return; }
     S = { names: getNames(), seed: d.seed, aBits: d.aBits, bBits: d.bBits };
     S.qs = seededQuestions(S.seed);
     S.score = 0;
@@ -363,7 +379,7 @@ function showResult(showReceipt) {
 
   $("receiptArea").innerHTML = "";
   if (showReceipt) {
-    const receipt = encodeB(S.seed & 32767, S.aBits, S.bBits);
+    const receipt = encodeB(S.seed, S.aBits, S.bBits);
     const box = document.createElement("div");
     box.className = "code-box";
     box.innerHTML = `<div class="code-text" style="font-size:28px">${receipt}</div>
