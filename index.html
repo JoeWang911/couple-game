@@ -7,14 +7,23 @@
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>默契大考验 · 异地情侣版</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='%23ff6b9d'%20d='M16%2028C16%2028%204%2020.5%204%2012.5%204%208.4%207.2%205.5%2010.8%205.5c2.4%200%204.3%201.3%205.2%203.2.9-1.9%202.8-3.2%205.2-3.2C24.8%205.5%2028%208.4%2028%2012.5%2028%2020.5%2016%2028%2016%2028Z'/%3E%3C/svg%3E">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { height: 100%; }
+  /* 注意：这里不能用 html,body{height:100%}。内容比屏幕高时，垂直居中会把卡片
+     顶部推到负坐标，导致小屏手机上结果页顶部被裁掉且滚不上去。 */
+  html { min-height: 100%; }
   body {
     font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
     background: linear-gradient(160deg, #ffd1dc 0%, #ffe4ec 45%, #fff0f5 100%);
-    display: flex; align-items: center; justify-content: center;
-    min-height: 100vh; overflow-x: hidden;
+    display: flex;
+    align-items: center;
+    align-items: safe center;   /* 支持该关键字的浏览器：内容超高时自动顶部对齐 */
+    justify-content: center;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    overscroll-behavior: none;  /* 防止答题时误触下拉刷新 */
     padding: 16px;
   }
   .heart-bg { position: fixed; bottom: -40px; opacity: .45; pointer-events: none; z-index: 0;
@@ -35,11 +44,11 @@
   @keyframes pop { from { transform: scale(.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
   h1 { font-size: 26px; color: #e75480; margin-bottom: 6px; }
-  .subtitle { color: #b0708a; font-size: 13.5px; line-height: 1.7; margin-bottom: 20px; }
+  .subtitle { color: #97586f; font-size: 13.5px; line-height: 1.7; margin-bottom: 20px; }
 
   .name-row { display: flex; gap: 10px; margin-bottom: 16px; }
   .name-box { flex: 1; }
-  .name-box label { display: block; font-size: 12px; color: #b0708a; margin-bottom: 4px; }
+  .name-box label { display: block; font-size: 12px; color: #97586f; margin-bottom: 4px; }
   input[type=text] {
     width: 100%; padding: 12px; border: 2px solid #ffd1dc; border-radius: 14px;
     font-size: 16px; text-align: center; outline: none; background: #fff;
@@ -60,10 +69,10 @@
     border: 2px solid #ffb3c9; box-shadow: none;
   }
 
-  .step-bar { font-size: 13px; color: #b0708a; margin-bottom: 4px; }
+  .step-bar { font-size: 13px; color: #97586f; margin-bottom: 4px; }
   .score-pill { display: inline-block; background: #fff0f5; border-radius: 999px;
     padding: 5px 16px; color: #e75480; font-weight: bold; font-size: 14px; margin-bottom: 14px; }
-  .question-tip { font-size: 14px; color: #b0708a; margin-bottom: 12px; }
+  .question-tip { font-size: 14px; color: #97586f; margin-bottom: 12px; }
   .question { font-size: 21px; color: #c94070; font-weight: bold; margin-bottom: 20px; min-height: 30px; }
 
   .opt {
@@ -81,7 +90,7 @@
   }
   .code-text { font-size: 34px; font-weight: bold; letter-spacing: 6px; color: #e75480;
     font-family: Consolas, monospace; }
-  .code-tip { font-size: 12.5px; color: #b0708a; margin-top: 8px; line-height: 1.6; }
+  .code-tip { font-size: 12.5px; color: #97586f; margin-top: 8px; line-height: 1.6; }
 
   .result-emoji { font-size: 56px; }
   .result-title { font-size: 24px; color: #e75480; margin: 6px 0 2px; font-weight: bold; }
@@ -93,8 +102,10 @@
     font-size: 13.5px; border: 2px solid #f3e0e6; }
   .cmp-item.same { border-color: #ff9dbd; background: #fff0f5; }
   .cmp-q { font-weight: bold; color: #7a4055; margin-bottom: 4px; }
-  .cmp-a { color: #a06080; }
+  .cmp-a { color: #97586f; }
   .cmp-a b { color: #e75480; }
+  .quiz-nav { margin-top: 2px; }
+  .btn.small { padding: 11px; font-size: 14px; margin-top: 4px; }
 
   .burst { position: fixed; font-size: 26px; pointer-events: none; z-index: 99;
     animation: burstFly .9s ease-out forwards; }
@@ -118,6 +129,7 @@
   <button class="btn" onclick="startAsFirst()">① 我先答题，生成密令</button>
   <button class="btn ghost" onclick="gotoInput('answer')">② 输入密令，开始作答</button>
   <button class="btn ghost" onclick="gotoInput('review')">③ 输入回执，查看结果</button>
+  <button class="btn ghost hidden" id="resumeBtn" onclick="resumeSaved()">继续上次答题</button>
 </div>
 
 <!-- 密令输入 -->
@@ -137,6 +149,9 @@
   <div class="question">选哪个？</div>
   <div class="opt" id="opt0" onclick="pick(0)"></div>
   <div class="opt" id="opt1" onclick="pick(1)"></div>
+  <div class="quiz-nav">
+    <button class="btn ghost small" onclick="prev()">← 上一题 / 退出</button>
+  </div>
 </div>
 
 <!-- 先答方完成：生成密令 -->
@@ -147,7 +162,7 @@
     <div class="code-text" id="myCode"></div>
     <div class="code-tip">对方打开本页面 → 选「② 输入密令」<br>输入这串字符即可</div>
   </div>
-  <button class="btn" onclick="copyCode()">复制密令</button>
+  <button class="btn" onclick="copyCode(this)">复制密令</button>
   <button class="btn ghost" onclick="location.reload()">回到首页</button>
 </div>
 
@@ -204,6 +219,7 @@ const CODE_VERSION = 1; // 题库版本，每次加题后 +1
 
 let S = {}; // 状态
 const $ = id => document.getElementById(id);
+const SAVE_KEY = "mq_progress_v1"; // 本地进度存档的键名
 
 // 漂浮爱心
 ["💗","💖","💕","🌸","💝"].forEach((h,i) => {}); 
@@ -222,9 +238,57 @@ function show(id) {
   ["home","inputScreen","quiz","codeScreen","result"].forEach(s => $(s).classList.add("hidden"));
   $(id).classList.remove("hidden");
 }
-function backHome(){ show("home"); }
+function backHome(){ refreshResumeBtn(); show("home"); }
 function getNames() {
   return [ $("nameMe").value.trim() || "我", $("nameTa").value.trim() || "TA" ];
+}
+
+// ---------- 进度存档：防止答题中途误触刷新/返回导致前功尽弃 ----------
+function saveProgress() {
+  try {
+    if (!S || typeof S.idx !== "number" || S.idx <= 0 || S.idx >= TOTAL) return;
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      v: CODE_VERSION, names: S.names, seed: S.seed, first: !!S.first,
+      aBits: S.aBits | 0, bBits: S.bBits | 0, idx: S.idx, score: S.score | 0
+    }));
+  } catch (e) {}
+}
+function clearProgress() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} }
+function readProgress() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    if (!s || s.v !== CODE_VERSION) { clearProgress(); return null; }
+    if (typeof s.seed !== "number" || typeof s.idx !== "number" || s.idx <= 0 || s.idx >= TOTAL) return null;
+    return s;
+  } catch (e) { return null; }
+}
+function refreshResumeBtn() {
+  const el = $("resumeBtn");
+  if (!el) return;
+  const s = readProgress();
+  if (s) {
+    el.textContent = `继续上次答题（第 ${s.idx + 1} / ${TOTAL} 题）`;
+    el.classList.remove("hidden");
+  } else {
+    el.classList.add("hidden");
+  }
+}
+function resumeSaved() {
+  const s = readProgress();
+  if (!s) { refreshResumeBtn(); return; }
+  S = { names: s.names || ["我", "TA"], seed: s.seed, first: !!s.first,
+        aBits: s.aBits | 0, bBits: s.bBits | 0, idx: s.idx, score: s.score | 0 };
+  S.qs = seededQuestions(S.seed);
+  $("nameMe").value = S.names[0] || "";
+  $("nameTa").value = S.names[1] || "";
+  $("whoTip").textContent = S.first
+    ? S.names[0] + " 作答中（凭直觉选！）"
+    : S.names[0] + " 作答中（猜猜 TA 选了什么～）";
+  $("score").textContent = S.score;
+  show("quiz");
+  renderQ();
 }
 
 // 带种子随机洗牌，保证双方题目一致
@@ -272,6 +336,7 @@ function gotoInput(mode) {
 }
 
 function startAsFirst() {
+  clearProgress();   // 开新一局，丢掉上一局的存档
   S = { names: getNames(), seed: Math.floor(Math.random()*4096), first: true, aBits: 0, idx: 0, score: 0 };
   S.qs = seededQuestions(S.seed);
   $("whoTip").textContent = S.names[0] + " 作答中（凭直觉选！）";
@@ -285,6 +350,7 @@ function submitCode() {
     if (!d) { alert("密令无效，请检查后再试"); return; }
     if (d.error === "version") { alert("这个密令来自旧版本题库，游戏已更新，请让对方重新生成密令～"); return; }
     S = { names: getNames(), seed: d.seed, aBits: d.bits, first: false, bBits: 0, idx: 0, score: 0 };
+    clearProgress();
     S.qs = seededQuestions(S.seed);
     $("whoTip").textContent = S.names[0] + " 作答中（猜猜 TA 选了什么～）";
     show("quiz"); renderQ();
@@ -310,6 +376,9 @@ function renderQ() {
 }
 
 function pick(i) {
+  if (!S || typeof S.idx !== "number" || S.idx >= TOTAL) return;  // 本局已结束，忽略任何后续点击
+  if (S.locked) return;          // 关键：220ms 过渡期内忽略后续点击，避免连点/双击跳题并伪造答案
+  S.locked = true;
   $("opt"+i).classList.add("picked");
   if (navigator.vibrate) navigator.vibrate(30);
   setTimeout(() => {
@@ -321,11 +390,32 @@ function pick(i) {
       if (aPick === i) { S.score += 10; $("score").textContent = S.score; burst($("opt"+i)); }
     }
     S.idx++;
-    if (S.idx >= TOTAL) finish(); else renderQ();
+    S.locked = false;
+    if (S.idx >= TOTAL) finish(); else { saveProgress(); renderQ(); }
   }, 220);
 }
 
+// 返回上一题：同时撤销该题已记录的答案（后答方还要把加过的分数退回去）
+function prev() {
+  if (S.locked) return;                     // 翻页动画中忽略
+  if (!S || typeof S.idx !== "number") return;
+  if (S.idx <= 0) { clearProgress(); backHome(); return; }   // 第 1 题再往回 = 退出本局
+  const j = S.idx - 1;
+  if (S.first) {
+    S.aBits &= ~(1 << j);
+  } else {
+    const bit = (S.bBits >> j) & 1;
+    if (bit === ((S.aBits >> j) & 1)) S.score = Math.max(0, S.score - 10);
+    S.bBits &= ~(1 << j);
+    $("score").textContent = S.score;
+  }
+  S.idx = j;
+  saveProgress();
+  renderQ();
+}
+
 function finish() {
+  clearProgress();   // 本局已结束，清掉存档
   if (S.first) {
     $("myCode").textContent = encodeA(S.seed, S.aBits);
     show("codeScreen");
@@ -334,12 +424,36 @@ function finish() {
   }
 }
 
-function copyCode() {
-  const code = $("myCode").textContent;
-  const done = () => { const b = event.target; b.textContent = "已复制 ✅"; setTimeout(()=>b.textContent="复制密令",1500); };
-  if (navigator.clipboard) navigator.clipboard.writeText(code).then(done).catch(()=>prompt("长按复制：", code));
-  else prompt("长按复制：", code);
+// 复制：优先用剪贴板 API（仅 https / localhost 可用），否则退回到临时 textarea + execCommand，
+// 最后才用 prompt 兜底。不再依赖非标准的全局 event.target，改用传入的按钮引用。
+function copyText(text, btn, label) {
+  const done = () => {
+    if (!btn) return;
+    btn.textContent = "已复制 ✅";
+    setTimeout(() => { btn.textContent = label; }, 1500);
+  };
+  const fallback = () => {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.top = "-1000px";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    if (ok) done(); else prompt("长按复制：", text);
+  };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(done).catch(fallback);
+  } else {
+    fallback();
+  }
 }
+function copyCode(btn) { copyText($("myCode").textContent, btn, "复制密令"); }
 
 function burst(el) {
   const r = el.getBoundingClientRect();
@@ -394,14 +508,20 @@ function showResult(showReceipt) {
     const btn = document.createElement("button");
     btn.className = "btn";
     btn.textContent = "复制回执密令";
-    btn.onclick = () => {
-      const done = () => { btn.textContent = "已复制 ✅"; setTimeout(()=>btn.textContent="复制回执密令",1500); };
-      if (navigator.clipboard) navigator.clipboard.writeText(receipt).then(done).catch(()=>prompt("长按复制：", receipt));
-      else prompt("长按复制：", receipt);
-    };
+    btn.onclick = () => copyText(receipt, btn, "复制回执密令");
     $("receiptArea").appendChild(btn);
   }
 }
+
+// 答题中误点刷新 / 误关页面时给出提示（进度已存到本地，仍可继续）
+window.addEventListener("beforeunload", e => {
+  if (!$("quiz").classList.contains("hidden") && S && S.idx > 0 && S.idx < TOTAL) {
+    e.preventDefault();
+    e.returnValue = "";
+  }
+});
+
+refreshResumeBtn();
 </script>
 </body>
 </html>
