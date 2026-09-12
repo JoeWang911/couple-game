@@ -120,6 +120,19 @@
     font-weight: bold; color: #e75480; }
   .dim-note { font-size: 12.5px; color: #97586f; line-height: 1.7; margin-top: 8px; }
 
+  /* 历史默契值 */
+  .hist-box { text-align: left; background: #fff8fb; border: 2px solid #ffe3ee;
+    border-radius: 16px; padding: 12px 14px; margin-top: 16px; }
+  .hist-title { font-size: 13px; color: #97586f; font-weight: bold; margin-bottom: 4px; }
+  .hist-stat { font-size: 12.5px; color: #97586f; line-height: 1.7; }
+  #histChart { width: 100%; height: 62px; display: block; margin: 4px 0 2px; }
+
+  /* 结果长图 */
+  .share-box { margin-top: 14px; }
+  .share-img { width: 100%; border-radius: 16px; box-shadow: 0 8px 24px rgba(255,105,135,.22); }
+  .share-tip { font-size: 12.5px; color: #97586f; margin: 8px 0 10px; line-height: 1.7; }
+  a.btn { text-align: center; text-decoration: none; }
+
   .burst { position: fixed; font-size: 26px; pointer-events: none; z-index: 99;
     animation: burstFly .9s ease-out forwards; }
   @keyframes burstFly {
@@ -144,6 +157,7 @@
   <button class="btn ghost" onclick="gotoInput('review')">③ 输入回执，查看结果</button>
   <button class="btn ghost" onclick="startSameDevice()">📱 同屏模式：一部手机轮流玩</button>
   <button class="btn ghost hidden" id="resumeBtn" onclick="resumeSaved()">继续上次答题</button>
+  <div id="historyBox"></div>
 </div>
 
 <!-- 密令输入 -->
@@ -169,7 +183,7 @@
   <div class="opt" id="opt0" onclick="pick(0)"></div>
   <div class="opt" id="opt1" onclick="pick(1)"></div>
   <div class="quiz-nav">
-    <button class="btn ghost small" onclick="prev()">← 上一题 / 退出</button>
+    <button class="btn ghost small" id="prevBtn" onclick="prev()">← 上一题 / 退出</button>
   </div>
 </div>
 
@@ -201,53 +215,73 @@
   <div class="result-score" id="rScore"></div>
   <div id="dimBox"></div>
   <div class="cmp-list" id="cmpList"></div>
+  <div id="retryArea"></div>
   <div id="receiptArea"></div>
+  <div id="shareArea"></div>
   <button class="btn ghost" onclick="location.reload()">再玩一局</button>
 </div>
 
 <script>
 // 每题第三个数字是主题分类（用于分层抽题 + 结果页的维度画像）。
 // 注意：千万不要删题或调换顺序 —— 密令里存的是题目下标，顺序一变旧密令就会串题。
-const CATS = ["生活日常","休闲玩乐","冲突情绪","亲密互动","未来金钱","相处与回忆"];
+const CATS = ["生活日常","休闲玩乐","冲突情绪","亲密互动","未来金钱","相处与回忆","异地专属"];
 const QUESTIONS = [
   ["火锅","烧烤",0],["奶茶","咖啡",0],["去海边","去山里",1],["早起","赖床",0],
   ["养猫","养狗",0],["甜粽子","咸粽子",0],["在家看电影","去电影院",1],["夏天","冬天",1],
   ["消息秒回","攒着一起回",5],["计划好再旅行","说走就走",5],["吃辣","不吃辣",0],
   ["实用的礼物","浪漫的礼物",3],["出门逛街","宅在家里",1],["日料","西餐",0],
-  ["恐怖片","喜剧片",1],["雨天宅家","雨天出门踩水",1],["先道歉","先讲道理",2],
+  ["恐怖片","喜剧片",1],["雨天宅家","雨天出门踩水",1],["吵完会一起复盘聊清楚","吵完就翻篇，不喜欢再提",2],
   ["惊喜派对","二人烛光晚餐",3],["努力存钱","及时行乐",4],["拥抱","亲亲",3],
-  ["米饭","面条",0],["早睡","熬夜",0],["主动认错","冷战等对方来哄",2],
-  ["山盟海誓的浪漫","平平淡淡的陪伴",4],["粘人型","独立型",5],
-  ["一起打游戏","一起追剧",1],["长发","短发",1],["穿情侣装","不穿情侣装",3],
+  ["米饭","面条",0],["早睡","熬夜",0],["吵架后我会先主动认错","吵架后我会等 TA 先开口",2],
+  ["大声说爱你","默默陪着你",4],["粘人型","独立型",5],
+  ["一起打游戏","一起追剧",1],["长发","短发",1],["会一起穿情侣装出门","情侣装有点不好意思穿",3],
   ["一起做饭","一起吃外卖",0],["主动报备","互不查岗",5],
   ["一见钟情","日久生情",5],["异地恋","天天见面",5],
   ["吵架后立马和好","冷静一下再谈",2],["甜口","咸口",0],
   ["攒钱买房","先享受当下",4],["一起运动","一起躺平",1],
   ["手写情书","视频通话",3],["主动制造惊喜","默默付出行动",3],
-  ["喜欢拍照记录","不太爱拍照",1],["吵架谁先哄谁","谁错谁道歉",2],
-  ["一起养宠物","先不养",4],["异地时每天视频","有空就联系",5],
+  ["爱拍照记录","更爱当下的感觉不拍",1],["吵架时更在意 TA 的态度","吵架时更在意事情的对错",2],
+  ["一起养只猫猫狗狗","等稳定下来再养",4],["异地时每天视频","有空就联系",5],
   ["深夜谈心","白天聊日常",5],["送花送礼物","陪伴就是最好的礼物",3],
   ["朋友圈秀恩爱","低调不发",3],["一起旅游看风景","一起在家睡大觉",1],
-  ["有话直说","让对方猜心思",2],["相信命中注定","相信事在人为",5],
+  ["有话直说","喜欢让对方猜心思",2],["觉得你们是命中注定","觉得感情靠两个人经营",5],
   ["早安吻","晚安抱",3],["一起规划未来","走一步看一步",4],
   ["先告白的人是我","先告白的人是TA",5],["主动牵手","被牵手心跳更快",3],
   ["喜欢被TA从背后抱住","喜欢面对面拥抱",3],["锁骨吻","额头吻",3],
   ["喜欢TA叫我宝宝","喜欢TA叫我名字",3],["睡前语音哄睡","睡前说晚安就好",3],
-  ["吃醋了直接说","吃醋了憋着等TA发现",2],["纪念日必须过","在一起每天都是纪念日",4],
-  ["喜欢摸TA的头","喜欢被TA摸头",3],["叫起床用温柔声","叫起床直接掀被子",5],
+  ["吃醋了直接说","吃醋了先自己消化一下",2],["纪念日必须过","在一起每天都是纪念日",4],
+  ["喜欢摸TA的头","喜欢被TA摸头",3],["叫 TA 起床：温柔地哄","叫 TA 起床：直接拉开窗帘",5],
   ["吃醋的时候更可爱","撒娇的时候更可爱",3],["先挂电话的是我","先挂电话的是TA",5],
-  ["偷偷给TA准备惊喜","明着问TA想要什么",3],["冷战超不过一天","冷战能扛好几天",2],
+  ["偷偷准备惊喜","直接问 TA 想要什么",3],["吵架时想把话一次说透","吵架时会先闭嘴不想说话",2],
   ["喜欢捏TA的脸","喜欢咬TA的耳朵",3],["撒娇百试百灵","讲道理更管用",2],
-  ["最吃温柔攻势","最吃霸道护短",3],["喜欢TA叫我老公/老婆","喜欢TA叫我专属昵称",3],
-  ["生气时想被哄","生气时想一个人静静",2],["见面前精心打扮","见面前随便穿穿",3],
-  ["记得第一次牵手的场景","有点记不清了",5],["TA身上的味道很安心","没特别注意过",5],
-  ["梦到过TA","还没梦到过",5],["每次分开都舍不得","分开也还好",5],
-  ["偷偷看TA手机","完全信任不看",5],["给TA的备注是全名","给TA的备注超肉麻",3],
-  ["合照存在相册里","合照设成屏保",3],["TA睡着时偷偷看过TA","TA睡着就自己玩了",3],
-  ["最喜欢TA笑的样子","最喜欢TA认真的样子",3],["先动心的是我","先动心的是TA",5]
+  ["最吃温柔攻势","最吃霸道护短",3],["喜欢 TA 用亲密的昵称叫我","喜欢 TA 叫我本名/小名",3],
+  ["生气时想被哄","生气时想一个人静静",2],["见面前会认真打扮","见面前穿得舒服就行",3],
+  ["会专门记下你们的纪念日","日子记在心上，不用刻意记",5],["TA 身上的味道一闻就知道是 TA","说不上来是什么味，但很熟悉",5],
+  ["梦到过 TA，醒来就想告诉 TA","梦到过 TA，自己偷偷乐",5],["分开时会赖着不想走","分开时干脆利落，回头再聊",5],
+  ["TA 手机响了会好奇瞟一眼","不翻 TA 手机，给足空间",5],["给TA的备注是全名","给TA的备注超肉麻",3],
+  ["合照存在相册里","合照设成屏保",3],["TA 睡着后会偷偷看 TA 一会儿","TA 睡着后我该干嘛干嘛",3],
+  ["最喜欢TA笑的样子","最喜欢TA认真的样子",3],["先动心的是我","先动心的是TA",5],
+  // ↓↓↓ 以下为后加题目：只能往后追加，绝不删题、不调序（密令里存的是题目下标）
+  ["见面第一件事：先抱一会儿","见面第一件事：先去找吃的",3],["TA 生气时会完全不说话","TA 生气时会阴阳怪气",2],
+  ["视频时各干各的也不挂","视频时必须一直聊天",6],["吵架后有人先递台阶","吵架后装作没事发生",2],
+  ["我更容易被哄好","TA 更容易被哄好",5],["约会计划提前排好","出门再说去哪",5],
+  ["TA 最受不了我玩手机","TA 最受不了我出门磨蹭",2],["你们常因为生活琐事拌嘴","你们常因为说话方式拌嘴",2],
+  ["未来一年：存钱去旅行","未来一年：搬到同一个城市",4],["最想和 TA 看一次日出","最想和 TA 看一场演唱会",1],
+  ["逛街时我全程陪着","逛街时我找地方坐着等",1],["出门总是我先到","出门总是 TA 等我",5],
+  ["睡前一小时各自刷手机","睡前一小时聊聊天",0],["一起吃饭一般我点菜","一起吃饭一般 TA 点菜",0],
+  ["我更会哄人","TA 更会哄人",2],["见面时想一直牵着","见面时各走各的也行",3],
+  ["最想让 TA 改掉迟到","最想让 TA 改掉熬夜",0],["吵架时最怕 TA 沉默","吵架时最怕 TA 翻旧账",2],
+  ["合照基本都是我拍的","合照基本都是 TA 拍的",3],["看电影时我全程投入","看电影时我爱边看边聊",1],
+  ["到家了我们会互报平安","到家了不太特意说",5],
+  ["见面越勤越好","攒着长假见一次",6],["车票机票基本都是我订","车票机票基本都是 TA 订",6],
+  ["异地吵架必须当天说清","异地吵架先冷静一晚上",6],["异地最想念 TA 的声音","异地最想念 TA 的味道",6],
+  ["每天固定早安晚安","想起来才问候一声",6],["下次见面先抱很久","下次见面先去吃好吃的",6],
+  ["收到 TA 寄的包裹立刻拆","先拍照发给 TA 再拆",6],["异地最难熬的是想见见不到","异地最难熬的是有事没人搭把手",6],
+  ["更喜欢听 TA 的语音","更喜欢打字聊",6],["异地时聊天一天到晚不断","异地时有正事才说",6],
+  ["见面前一天会兴奋得睡不着","见面前一天照常淡定",6],["异地时最想同步看一部剧","异地时各忙各的也知道对方在",6]
 ];
 const TOTAL = 10;
-const CODE_VERSION = 2; // 题库版本：抽题算法或题库变动时必须 +1，否则旧密令会串题
+const CODE_VERSION = 3; // 题库版本：抽题算法或题库变动时必须 +1，否则旧密令会串题
 
 let S = {}; // 状态
 const $ = id => document.getElementById(id);
@@ -270,7 +304,7 @@ function show(id) {
   ["home","inputScreen","quiz","codeScreen","result","handoff"].forEach(s => $(s).classList.add("hidden"));
   $(id).classList.remove("hidden");
 }
-function backHome(){ refreshResumeBtn(); show("home"); }
+function backHome(){ refreshResumeBtn(); renderHistory(); show("home"); }
 // 首页的昵称（先答方/同屏模式用）与密令输入页的昵称（后答方从链接进来时用）
 function homeNames() {
   return [ $("nameMe").value.trim() || "我", $("nameTa").value.trim() || "TA" ];
@@ -510,53 +544,112 @@ function submitCode() {
     const names = screenNames();     // 看回执的是"先答方"
     S = { names, nameFirst: names[0], nameSecond: names[1], seed: d.seed, aBits: d.aBits, bBits: d.bBits };
     S.qs = seededQuestions(S.seed);
-    S.score = 0;
-    for (let i=0;i<TOTAL;i++) if(((S.aBits>>i)&1)===((S.bBits>>i)&1)) S.score += 10;
+    S.score = calcScore();
     showResult(false);
   }
 }
 
 function renderQ() {
-  const q = QUESTIONS[S.qs[S.idx]];
-  $("stepBar").textContent = `第 ${S.idx+1} / ${TOTAL} 题`;
+  // 重猜模式下走的是"答错的那几题"，其余逻辑复用
+  const qi = S.retry ? S.retry.list[S.retry.pos] : S.qs[S.idx];
+  const q = QUESTIONS[qi];
+  $("stepBar").textContent = S.retry
+    ? `重猜 ${S.retry.pos + 1} / ${S.retry.list.length}`
+    : `第 ${S.idx+1} / ${TOTAL} 题`;
+  $("prevBtn").textContent = S.retry ? "← 上一题" : "← 上一题 / 退出";
   $("opt0").textContent = qText(q[0]);
   $("opt1").textContent = qText(q[1]);
   $("opt0").className = "opt";
   $("opt1").className = "opt";
 }
 
+// 默契值一律按 aBits 与 bBits 的实际比较结果重算，避免增量加减出错
+function calcScore() {
+  let s = 0;
+  for (let i = 0; i < TOTAL; i++) if (((S.aBits >> i) & 1) === ((S.bBits >> i) & 1)) s += 10;
+  return s;
+}
+
 function pick(i) {
-  if (!S || typeof S.idx !== "number" || S.idx >= TOTAL) return;  // 本局已结束，忽略任何后续点击
+  if (!S || typeof S.idx !== "number") return;
+  if (!S.retry && S.idx >= TOTAL) return;   // 本局已结束，忽略任何后续点击
   if (S.locked) return;          // 关键：220ms 过渡期内忽略后续点击，避免连点/双击跳题并伪造答案
   S.locked = true;
   $("opt"+i).classList.add("picked");
   if (navigator.vibrate) navigator.vibrate(30);
   setTimeout(() => {
+    S.locked = false;
+    if (S.retry) { pickRetry(i); return; }
     if (S.first) {
       S.aBits |= (i << S.idx);
     } else {
       S.bBits |= (i << S.idx);
-      const aPick = (S.aBits >> S.idx) & 1;
-      if (aPick === i) { S.score += 10; $("score").textContent = S.score; burst($("opt"+i)); }
+      S.score = calcScore();
+      $("score").textContent = S.score;
+      if (((S.aBits >> S.idx) & 1) === i) burst($("opt"+i));
     }
     S.idx++;
-    S.locked = false;
     if (S.idx >= TOTAL) finish(); else { saveProgress(); renderQ(); }
   }, 220);
+}
+
+// 重猜：只重答"刚才答错"的那几题，猜中可以加分
+function pickRetry(i) {
+  const qi = S.retry.list[S.retry.pos];
+  const oldBit = (S.bBits >> qi) & 1;
+  S.bBits = (S.bBits & ~(1 << qi)) | (i << qi);
+  S.retry.stack.push({ qi, oldBit });
+  S.score = calcScore();
+  $("score").textContent = S.score;
+  if (((S.aBits >> qi) & 1) === i) burst($("opt"+i));
+  S.retry.pos++;
+  if (S.retry.pos >= S.retry.list.length) finishRetry(); else renderQ();
+}
+
+function startRetry() {
+  const miss = [];
+  for (let i = 0; i < TOTAL; i++) if (((S.aBits >> i) & 1) !== ((S.bBits >> i) & 1)) miss.push(i);
+  if (!miss.length || S.retried) return;
+  S.retry = { list: miss, pos: 0, stack: [], baseScore: S.score };
+  $("whoTip").textContent = "再猜一次：" + (S.nameSecond || "我") + " 觉得 " + (S.nameFirst || "TA") + " 会选哪个？";
+  show("quiz");
+  updateQuizChrome();
+  renderQ();
+}
+
+function finishRetry() {
+  const before = S.retry.baseScore, after = calcScore(), n = S.retry.list.length;
+  S.score = after;
+  S.retryNote = after > before
+    ? `🔁 重猜了 ${n} 题，又有 ${(after - before) / 10} 题对上了：${before} 分 → ${after} 分`
+    : `🔁 重猜了 ${n} 题，还是没猜中 TA 的心思 😆`;
+  S.retry = null;
+  S.retried = true;
+  updateHistoryScore(after);
+  showResult(false);
 }
 
 // 返回上一题：同时撤销该题已记录的答案（后答方还要把加过的分数退回去）
 function prev() {
   if (S.locked) return;                     // 翻页动画中忽略
   if (!S || typeof S.idx !== "number") return;
+  if (S.retry) {                            // 重猜中：逐步回退
+    if (!S.retry.stack.length) return;
+    const last = S.retry.stack.pop();
+    S.bBits = (S.bBits & ~(1 << last.qi)) | (last.oldBit << last.qi);
+    S.score = calcScore();
+    $("score").textContent = S.score;
+    S.retry.pos--;
+    renderQ();
+    return;
+  }
   if (S.idx <= 0) { clearProgress(); backHome(); return; }   // 第 1 题再往回 = 退出本局
   const j = S.idx - 1;
   if (S.first) {
     S.aBits &= ~(1 << j);
   } else {
-    const bit = (S.bBits >> j) & 1;
-    if (bit === ((S.aBits >> j) & 1)) S.score = Math.max(0, S.score - 10);
     S.bBits &= ~(1 << j);
+    S.score = calcScore();
     $("score").textContent = S.score;
   }
   S.idx = j;
@@ -576,8 +669,72 @@ function finish() {
     $("myCode").textContent = encodeA(S.seed, S.aBits);
     show("codeScreen");
   } else {
+    recordHistory();       // 本局确实答完了，记进历史（先答方看回执时不会重复记录）
     showResult(!S.same);   // 同屏模式不需要回执
   }
+}
+
+// ---------- 历史默契值 ----------
+const HIST_KEY = "mq_history_v1";
+function readHistory() {
+  try {
+    const a = JSON.parse(localStorage.getItem(HIST_KEY) || "[]");
+    return Array.isArray(a) ? a.filter(x => x && typeof x.score === "number") : [];
+  } catch (e) { return []; }
+}
+function recordHistory() {
+  try {
+    const a = readHistory();
+    const t = Date.now();
+    a.push({ t, score: S.score, a: S.nameFirst || "我", b: S.nameSecond || "TA" });
+    localStorage.setItem(HIST_KEY, JSON.stringify(a.slice(-20)));   // 只留最近 20 局
+    S.histT = t;                                                    // 重猜后要回来改这一条
+  } catch (e) {}
+}
+// 重猜涨分了：把刚记下的那条历史同步更新，避免"页面上 100 分、记录里 50 分"
+function updateHistoryScore(score) {
+  if (!S.histT) return;
+  try {
+    const a = readHistory();
+    for (let i = a.length - 1; i >= 0; i--) if (a[i].t === S.histT) { a[i].score = score; break; }
+    localStorage.setItem(HIST_KEY, JSON.stringify(a));
+  } catch (e) {}
+}
+function renderHistory() {
+  const box = $("historyBox");
+  if (!box) return;
+  const a = readHistory();
+  if (!a.length) { box.innerHTML = ""; return; }
+  const last = a[a.length - 1].score;
+  const best = Math.max.apply(null, a.map(x => x.score));
+  const avg = Math.round(a.reduce((s, x) => s + x.score, 0) / a.length);
+  box.innerHTML = '<div class="hist-box">' +
+    '<div class="hist-title">📈 你们的默契值记录</div>' +
+    '<canvas id="histChart" width="600" height="124"></canvas>' +
+    `<div class="hist-stat">共 ${a.length} 局 · 最近 ${last} 分 · 最高 ${best} 分 · 平均 ${avg} 分</div>` +
+    '</div>';
+  drawHistoryChart(a);
+}
+function drawHistoryChart(a) {
+  const c = $("histChart");
+  if (!c || !c.getContext) return;
+  const g = c.getContext("2d");
+  const W = c.width, H = c.height, pad = 18;
+  const n = a.length;
+  const x = i => n === 1 ? W / 2 : pad + i * (W - pad * 2) / (n - 1);
+  const y = v => H - pad - (v / 100) * (H - pad * 2);
+  g.clearRect(0, 0, W, H);
+  g.strokeStyle = "#ffe3ee"; g.lineWidth = 2;
+  [0, 50, 100].forEach(v => { g.beginPath(); g.moveTo(pad, y(v)); g.lineTo(W - pad, y(v)); g.stroke(); });
+  g.strokeStyle = "#ff6b9d"; g.lineWidth = 5; g.lineJoin = "round";
+  g.beginPath();
+  a.forEach((p, i) => { i ? g.lineTo(x(i), y(p.score)) : g.moveTo(x(i), y(p.score)); });
+  g.stroke();
+  a.forEach((p, i) => {
+    g.beginPath(); g.arc(x(i), y(p.score), 7, 0, Math.PI * 2);
+    g.fillStyle = "#fff"; g.fill();
+    g.lineWidth = 4; g.strokeStyle = "#ff6b9d"; g.stroke();
+  });
 }
 
 // 复制：优先用剪贴板 API（仅 https / localhost 可用），否则退回到临时 textarea + execCommand，
@@ -672,6 +829,9 @@ function showResult(showReceipt) {
                   `<span class="dim-pct">${d.pct}%</span></div>`).join("") +
     `<div class="dim-note">${note}</div>`;
   dimBox.appendChild(wrap);
+  S.dimRows = rows;                                                        // 结果长图要用
+  S.dimNote = note;
+  S.head = { emoji, title, detail };
 
   const list = $("cmpList"); list.innerHTML = "";
   // aBits 恒为"先答方"的答案，bBits 恒为"后答方"，标签用 S.nameFirst / S.nameSecond
@@ -706,6 +866,124 @@ function showResult(showReceipt) {
     btn2.onclick = () => copyText(buildReceiptLink(), btn2, "复制回执链接（推荐）");
     $("receiptArea").appendChild(btn2);
   }
+
+  // ---- 重猜：只重答答错的题 ----
+  const ra = $("retryArea");
+  ra.innerHTML = "";
+  if (S.retryNote) {
+    const note = document.createElement("div");
+    note.className = "dim-note";
+    note.style.textAlign = "center";
+    note.textContent = S.retryNote;
+    ra.appendChild(note);
+  } else if (!S.retried) {
+    let missCount = 0;
+    for (let i = 0; i < TOTAL; i++) if (((S.aBits >> i) & 1) !== ((S.bBits >> i) & 1)) missCount++;
+    if (missCount > 0) {
+      const rb = document.createElement("button");
+      rb.className = "btn";
+      rb.textContent = `🔁 只重猜答错的 ${missCount} 题`;
+      rb.onclick = () => startRetry();
+      ra.appendChild(rb);
+    }
+  }
+
+  renderShareArea();
+}
+
+// ---------- 结果长图（canvas 画一张图，手机上长按即可保存/分享） ----------
+function roundRect(g, x, y, w, h, r) {
+  g.beginPath();
+  g.moveTo(x + r, y);
+  g.arcTo(x + w, y, x + w, y + h, r);
+  g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r);
+  g.arcTo(x, y, x + w, y, r);
+  g.closePath();
+}
+function wrapText(g, text, cx, y, maxW, lh) {
+  const chars = String(text).split("");
+  const lines = [];
+  let line = "";
+  chars.forEach(ch => {
+    if (g.measureText(line + ch).width > maxW && line) { lines.push(line); line = ch; }
+    else line += ch;
+  });
+  if (line) lines.push(line);
+  lines.forEach((l, i) => g.fillText(l, cx, y + i * lh));
+  return lines.length;
+}
+function buildShareCard() {
+  const F = '"PingFang SC","Microsoft YaHei","Heiti SC",sans-serif';
+  const rows = S.dimRows || [];
+  const W = 720;
+  const H = 520 + rows.length * 52 + 150 + (S.retryNote ? 70 : 0);
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const g = c.getContext("2d");
+  const grad = g.createLinearGradient(0, 0, W, H);
+  grad.addColorStop(0, "#ffd1dc"); grad.addColorStop(.45, "#ffe4ec"); grad.addColorStop(1, "#fff0f5");
+  g.fillStyle = grad; g.fillRect(0, 0, W, H);
+  g.fillStyle = "rgba(255,255,255,.96)";
+  roundRect(g, 34, 34, W - 68, H - 68, 40); g.fill();
+
+  const head = S.head || { emoji: "💖", title: "默契大考验", detail: "" };
+  g.textAlign = "center";
+  g.font = "76px " + F; g.fillText(head.emoji, W / 2, 160);
+  g.fillStyle = "#e75480"; g.font = "bold 48px " + F; g.fillText(head.title, W / 2, 232);
+  g.fillStyle = "#7a4055"; g.font = "28px " + F;
+  g.fillText(`${S.nameFirst || "我"} ❤ ${S.nameSecond || "TA"}`, W / 2, 288);
+  g.fillStyle = "#e75480"; g.font = "bold 96px " + F; g.fillText(String(S.score), W / 2, 400);
+  g.fillStyle = "#97586f"; g.font = "24px " + F; g.fillText("分 · " + (head.detail || ""), W / 2, 442);
+
+  let y = 512;
+  rows.forEach(r => {
+    g.textAlign = "left"; g.fillStyle = "#97586f"; g.font = "26px " + F;
+    g.fillText(r.name, 100, y + 6);
+    g.fillStyle = "#ffe3ee"; roundRect(g, 230, y - 14, 330, 24, 12); g.fill();
+    g.fillStyle = "#ff6b9d";
+    roundRect(g, 230, y - 14, Math.max(10, 330 * r.pct / 100), 24, 12); g.fill();
+    g.textAlign = "right"; g.fillStyle = "#e75480"; g.font = "bold 26px " + F;
+    g.fillText(r.pct + "%", W - 100, y + 6);
+    y += 52;
+  });
+
+  y += 26;
+  g.textAlign = "center"; g.fillStyle = "#97586f"; g.font = "24px " + F;
+  const lines = wrapText(g, S.dimNote || "", W / 2, y, W - 220, 38);
+  y += lines * 38 + 16;
+  if (S.retryNote) {
+    g.fillStyle = "#e75480"; g.font = "bold 24px " + F;
+    const rl = wrapText(g, S.retryNote.replace("🔁 ", ""), W / 2, y, W - 220, 38);
+    y += rl * 38 + 10;
+  }
+  g.fillStyle = "#c48fa5"; g.font = "22px " + F;
+  g.fillText("💕 默契大考验 · 异地情侣版", W / 2, H - 74);
+  g.fillText(location.host + location.pathname, W / 2, H - 42);
+  return c;
+}
+function renderShareArea() {
+  const sa = $("shareArea");
+  if (!sa) return;
+  sa.innerHTML = "";
+  let url;
+  try { url = buildShareCard().toDataURL("image/png"); } catch (e) { return; }
+  const box = document.createElement("div");
+  box.className = "share-box";
+  const img = document.createElement("img");
+  img.className = "share-img";
+  img.alt = "默契值结果长图";
+  img.src = url;
+  const tip = document.createElement("div");
+  tip.className = "share-tip";
+  tip.textContent = "长按上面的图片就能保存 / 发给 TA 📤";
+  const dl = document.createElement("a");
+  dl.className = "btn";
+  dl.textContent = "下载长图";
+  dl.href = url;
+  dl.download = `默契值-${S.score}分.png`;
+  box.appendChild(img); box.appendChild(tip); box.appendChild(dl);
+  sa.appendChild(box);
 }
 
 // 答题中误点刷新 / 误关页面时给出提示（进度已存到本地，仍可继续）
@@ -718,6 +996,7 @@ window.addEventListener("beforeunload", e => {
 
 // 打开的是分享链接（#a=密令 / #r=回执）就直接进入输入页，否则回到首页
 if (!consumeHash()) refreshResumeBtn();
+renderHistory();
 // 页面已经开着时再点开分享链接（只变 hash）也能生效
 window.addEventListener("hashchange", () => { consumeHash(); });
 </script>
