@@ -165,7 +165,21 @@ const QUESTIONS = [
   ["消息秒回","攒着一起回"],["计划好再旅行","说走就走"],["吃辣","不吃辣"],
   ["实用的礼物","浪漫的礼物"],["出门逛街","宅在家里"],["日料","西餐"],
   ["恐怖片","喜剧片"],["雨天宅家","雨天出门踩水"],["先道歉","先讲道理"],
-  ["惊喜派对","二人烛光晚餐"],["努力存钱","及时行乐"],["拥抱","亲亲"]
+  ["惊喜派对","二人烛光晚餐"],["努力存钱","及时行乐"],["拥抱","亲亲"],
+  ["米饭","面条"],["早睡","熬夜"],["主动认错","冷战等对方来哄"],
+  ["山盟海誓的浪漫","平平淡淡的陪伴"],["粘人型","独立型"],
+  ["一起打游戏","一起追剧"],["长发","短发"],["穿情侣装","不穿情侣装"],
+  ["一起做饭","一起吃外卖"],["主动报备","互不查岗"],
+  ["一见钟情","日久生情"],["异地恋","天天见面"],
+  ["吵架后立马和好","冷静一下再谈"],["甜口","咸口"],
+  ["攒钱买房","先享受当下"],["一起运动","一起躺平"],
+  ["手写情书","视频通话"],["主动制造惊喜","默默付出行动"],
+  ["喜欢拍照记录","不太爱拍照"],["吵架谁先哄谁","谁错谁道歉"],
+  ["一起养宠物","先不养"],["异地时每天视频","有空就联系"],
+  ["深夜谈心","白天聊日常"],["送花送礼物","陪伴就是最好的礼物"],
+  ["朋友圈秀恩爱","低调不发"],["一起旅游看风景","一起在家睡大觉"],
+  ["有话直说","让对方猜心思"],["相信命中注定","相信事在人为"],
+  ["早安吻","晚安抱"],["一起规划未来","走一步看一步"]
 ];
 const TOTAL = 10;
 
@@ -207,8 +221,8 @@ function encodeA(seed, bits){ return (seed*1024+bits).toString(36).toUpperCase()
 function decodeA(code){ const v=parseInt(code.toLowerCase(),36); if(isNaN(v)||v<0||v>=33554432) return null; return {seed: v>>10, bits: v&1023}; }
 // 回执：seed(15)+A答案(10)+B答案(10) = 35bit → 6 位 base36 可能不够，用 7 位
 function encodeB(seed,aBits,bBits){ return (((seed&32767)*1024+aBits)*1024+bBits).toString(36).toUpperCase(); }
-function decodeB(code){ const v=parseInt(code.toLowerCase(),36); if(isNaN(v)||v<0||v>=2176782336) return null;
-  const bBits=v&1023, aBits=(v>>10)&1023, seed=(v>>20)&32767; if(seed>=32768) return null; return {seed,aBits,bBits}; }
+function decodeB(code){ const v=parseInt(code.toLowerCase(),36); if(isNaN(v)||v<0||v>=78364164096) return null;
+  const bBits=v&1023, aBits=(v>>10)&1023, seed=(v>>20)&32767; return {seed,aBits,bBits}; }
 
 let inputMode = "answer";
 function gotoInput(mode) {
