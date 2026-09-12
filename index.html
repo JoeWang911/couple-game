@@ -97,7 +97,7 @@
   .result-score { font-size: 15px; color: #7a4055; margin-bottom: 14px; }
   .result-score b { color: #e75480; font-size: 22px; }
 
-  .cmp-list { text-align: left; max-height: 260px; overflow-y: auto; margin: 10px 0; }
+  .cmp-list { text-align: left; margin: 10px 0; }
   .cmp-item { background: #fff; border-radius: 14px; padding: 10px 12px; margin-bottom: 8px;
     font-size: 13.5px; border: 2px solid #f3e0e6; }
   .cmp-item.same { border-color: #ff9dbd; background: #fff0f5; }
@@ -106,6 +106,19 @@
   .cmp-a b { color: #e75480; }
   .quiz-nav { margin-top: 2px; }
   .btn.small { padding: 11px; font-size: 14px; margin-top: 4px; }
+
+  /* 维度画像 */
+  .dim-box { text-align: left; background: #fff8fb; border: 2px solid #ffe3ee;
+    border-radius: 16px; padding: 12px 14px; margin: 14px 0 6px; }
+  .dim-title { font-size: 13px; color: #97586f; font-weight: bold; margin-bottom: 9px; }
+  .dim-row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+  .dim-name { width: 66px; flex: none; font-size: 12.5px; color: #97586f; }
+  .dim-bar { flex: 1; height: 9px; background: #ffe3ee; border-radius: 99px; overflow: hidden; }
+  .dim-bar i { display: block; height: 100%; border-radius: 99px;
+    background: linear-gradient(90deg, #ff6b9d, #ff9a8b); }
+  .dim-pct { width: 40px; flex: none; text-align: right; font-size: 12.5px;
+    font-weight: bold; color: #e75480; }
+  .dim-note { font-size: 12.5px; color: #97586f; line-height: 1.7; margin-top: 8px; }
 
   .burst { position: fixed; font-size: 26px; pointer-events: none; z-index: 99;
     animation: burstFly .9s ease-out forwards; }
@@ -129,6 +142,7 @@
   <button class="btn" onclick="startAsFirst()">① 我先答题，生成密令</button>
   <button class="btn ghost" onclick="gotoInput('answer')">② 输入密令，开始作答</button>
   <button class="btn ghost" onclick="gotoInput('review')">③ 输入回执，查看结果</button>
+  <button class="btn ghost" onclick="startSameDevice()">📱 同屏模式：一部手机轮流玩</button>
   <button class="btn ghost hidden" id="resumeBtn" onclick="resumeSaved()">继续上次答题</button>
 </div>
 
@@ -136,6 +150,10 @@
 <div class="card hidden" id="inputScreen">
   <h1 id="inputTitle">输入密令</h1>
   <p class="subtitle" id="inputTip"></p>
+  <div class="name-row">
+    <div class="name-box"><label>🐻 我的昵称</label><input type="text" id="nameMe2" maxlength="6" placeholder="我"></div>
+    <div class="name-box"><label>🐰 对方昵称</label><input type="text" id="nameTa2" maxlength="6" placeholder="TA"></div>
+  </div>
   <input type="text" id="codeInput" maxlength="7" placeholder="密令" style="text-transform:uppercase;letter-spacing:6px;font-size:24px;font-weight:bold;color:#e75480;font-family:Consolas,monospace">
   <button class="btn" onclick="submitCode()">确认</button>
   <button class="btn ghost" onclick="backHome()">返回</button>
@@ -144,7 +162,8 @@
 <!-- 答题 -->
 <div class="card hidden" id="quiz">
   <div class="step-bar" id="stepBar">第 1 / 10 题</div>
-  <span class="score-pill">💖 默契值 <span id="score">0</span></span>
+  <span class="score-pill" id="scorePill">💖 默契值 <span id="score">0</span></span>
+  <div class="question-tip" id="firstHint" style="display:none">先答方不显示分数，答完生成密令给 TA 🌷</div>
   <div class="question-tip" id="whoTip"></div>
   <div class="question">选哪个？</div>
   <div class="opt" id="opt0" onclick="pick(0)"></div>
@@ -152,6 +171,14 @@
   <div class="quiz-nav">
     <button class="btn ghost small" onclick="prev()">← 上一题 / 退出</button>
   </div>
+</div>
+
+<!-- 同屏模式：交接手机 -->
+<div class="card hidden" id="handoff">
+  <h1>✅ <span id="handoffWho"></span> 答完啦！</h1>
+  <p class="subtitle">把手机交给 <b id="handoffNext"></b><br>别偷看刚才选的答案哦～</p>
+  <button class="btn" onclick="startSecondOnSameDevice()">我准备好了，开始答题</button>
+  <button class="btn ghost" onclick="location.reload()">回到首页</button>
 </div>
 
 <!-- 先答方完成：生成密令 -->
@@ -163,6 +190,7 @@
     <div class="code-tip">对方打开本页面 → 选「② 输入密令」<br>输入这串字符即可</div>
   </div>
   <button class="btn" onclick="copyCode(this)">复制密令</button>
+  <button class="btn" onclick="copyInviteLink(this)">复制邀请链接（推荐）</button>
   <button class="btn ghost" onclick="location.reload()">回到首页</button>
 </div>
 
@@ -171,51 +199,55 @@
   <div class="result-emoji" id="rEmoji"></div>
   <div class="result-title" id="rTitle"></div>
   <div class="result-score" id="rScore"></div>
+  <div id="dimBox"></div>
   <div class="cmp-list" id="cmpList"></div>
   <div id="receiptArea"></div>
   <button class="btn ghost" onclick="location.reload()">再玩一局</button>
 </div>
 
 <script>
+// 每题第三个数字是主题分类（用于分层抽题 + 结果页的维度画像）。
+// 注意：千万不要删题或调换顺序 —— 密令里存的是题目下标，顺序一变旧密令就会串题。
+const CATS = ["生活日常","休闲玩乐","冲突情绪","亲密互动","未来金钱","相处与回忆"];
 const QUESTIONS = [
-  ["火锅","烧烤"],["奶茶","咖啡"],["去海边","去山里"],["早起","赖床"],
-  ["养猫","养狗"],["甜粽子","咸粽子"],["在家看电影","去电影院"],["夏天","冬天"],
-  ["消息秒回","攒着一起回"],["计划好再旅行","说走就走"],["吃辣","不吃辣"],
-  ["实用的礼物","浪漫的礼物"],["出门逛街","宅在家里"],["日料","西餐"],
-  ["恐怖片","喜剧片"],["雨天宅家","雨天出门踩水"],["先道歉","先讲道理"],
-  ["惊喜派对","二人烛光晚餐"],["努力存钱","及时行乐"],["拥抱","亲亲"],
-  ["米饭","面条"],["早睡","熬夜"],["主动认错","冷战等对方来哄"],
-  ["山盟海誓的浪漫","平平淡淡的陪伴"],["粘人型","独立型"],
-  ["一起打游戏","一起追剧"],["长发","短发"],["穿情侣装","不穿情侣装"],
-  ["一起做饭","一起吃外卖"],["主动报备","互不查岗"],
-  ["一见钟情","日久生情"],["异地恋","天天见面"],
-  ["吵架后立马和好","冷静一下再谈"],["甜口","咸口"],
-  ["攒钱买房","先享受当下"],["一起运动","一起躺平"],
-  ["手写情书","视频通话"],["主动制造惊喜","默默付出行动"],
-  ["喜欢拍照记录","不太爱拍照"],["吵架谁先哄谁","谁错谁道歉"],
-  ["一起养宠物","先不养"],["异地时每天视频","有空就联系"],
-  ["深夜谈心","白天聊日常"],["送花送礼物","陪伴就是最好的礼物"],
-  ["朋友圈秀恩爱","低调不发"],["一起旅游看风景","一起在家睡大觉"],
-  ["有话直说","让对方猜心思"],["相信命中注定","相信事在人为"],
-  ["早安吻","晚安抱"],["一起规划未来","走一步看一步"],
-  ["先告白的人是我","先告白的人是TA"],["主动牵手","被牵手心跳更快"],
-  ["喜欢被TA从背后抱住","喜欢面对面拥抱"],["锁骨吻","额头吻"],
-  ["喜欢TA叫我宝宝","喜欢TA叫我名字"],["睡前语音哄睡","睡前说晚安就好"],
-  ["吃醋了直接说","吃醋了憋着等TA发现"],["纪念日必须过","在一起每天都是纪念日"],
-  ["喜欢摸TA的头","喜欢被TA摸头"],["叫起床用温柔声","叫起床直接掀被子"],
-  ["吃醋的时候更可爱","撒娇的时候更可爱"],["先挂电话的是我","先挂电话的是TA"],
-  ["偷偷给TA准备惊喜","明着问TA想要什么"],["冷战超不过一天","冷战能扛好几天"],
-  ["喜欢捏TA的脸","喜欢咬TA的耳朵"],["撒娇百试百灵","讲道理更管用"],
-  ["最吃温柔攻势","最吃霸道护短"],["喜欢TA叫我老公/老婆","喜欢TA叫我专属昵称"],
-  ["生气时想被哄","生气时想一个人静静"],["见面前精心打扮","见面前随便穿穿"],
-  ["记得第一次牵手的场景","有点记不清了"],["TA身上的味道很安心","没特别注意过"],
-  ["梦到过TA","还没梦到过"],["每次分开都舍不得","分开也还好"],
-  ["偷偷看TA手机","完全信任不看"],["给TA的备注是全名","给TA的备注超肉麻"],
-  ["合照存在相册里","合照设成屏保"],["TA睡着时偷偷看过TA","TA睡着就自己玩了"],
-  ["最喜欢TA笑的样子","最喜欢TA认真的样子"],["先动心的是我","先动心的是TA"]
+  ["火锅","烧烤",0],["奶茶","咖啡",0],["去海边","去山里",1],["早起","赖床",0],
+  ["养猫","养狗",0],["甜粽子","咸粽子",0],["在家看电影","去电影院",1],["夏天","冬天",1],
+  ["消息秒回","攒着一起回",5],["计划好再旅行","说走就走",5],["吃辣","不吃辣",0],
+  ["实用的礼物","浪漫的礼物",3],["出门逛街","宅在家里",1],["日料","西餐",0],
+  ["恐怖片","喜剧片",1],["雨天宅家","雨天出门踩水",1],["先道歉","先讲道理",2],
+  ["惊喜派对","二人烛光晚餐",3],["努力存钱","及时行乐",4],["拥抱","亲亲",3],
+  ["米饭","面条",0],["早睡","熬夜",0],["主动认错","冷战等对方来哄",2],
+  ["山盟海誓的浪漫","平平淡淡的陪伴",4],["粘人型","独立型",5],
+  ["一起打游戏","一起追剧",1],["长发","短发",1],["穿情侣装","不穿情侣装",3],
+  ["一起做饭","一起吃外卖",0],["主动报备","互不查岗",5],
+  ["一见钟情","日久生情",5],["异地恋","天天见面",5],
+  ["吵架后立马和好","冷静一下再谈",2],["甜口","咸口",0],
+  ["攒钱买房","先享受当下",4],["一起运动","一起躺平",1],
+  ["手写情书","视频通话",3],["主动制造惊喜","默默付出行动",3],
+  ["喜欢拍照记录","不太爱拍照",1],["吵架谁先哄谁","谁错谁道歉",2],
+  ["一起养宠物","先不养",4],["异地时每天视频","有空就联系",5],
+  ["深夜谈心","白天聊日常",5],["送花送礼物","陪伴就是最好的礼物",3],
+  ["朋友圈秀恩爱","低调不发",3],["一起旅游看风景","一起在家睡大觉",1],
+  ["有话直说","让对方猜心思",2],["相信命中注定","相信事在人为",5],
+  ["早安吻","晚安抱",3],["一起规划未来","走一步看一步",4],
+  ["先告白的人是我","先告白的人是TA",5],["主动牵手","被牵手心跳更快",3],
+  ["喜欢被TA从背后抱住","喜欢面对面拥抱",3],["锁骨吻","额头吻",3],
+  ["喜欢TA叫我宝宝","喜欢TA叫我名字",3],["睡前语音哄睡","睡前说晚安就好",3],
+  ["吃醋了直接说","吃醋了憋着等TA发现",2],["纪念日必须过","在一起每天都是纪念日",4],
+  ["喜欢摸TA的头","喜欢被TA摸头",3],["叫起床用温柔声","叫起床直接掀被子",5],
+  ["吃醋的时候更可爱","撒娇的时候更可爱",3],["先挂电话的是我","先挂电话的是TA",5],
+  ["偷偷给TA准备惊喜","明着问TA想要什么",3],["冷战超不过一天","冷战能扛好几天",2],
+  ["喜欢捏TA的脸","喜欢咬TA的耳朵",3],["撒娇百试百灵","讲道理更管用",2],
+  ["最吃温柔攻势","最吃霸道护短",3],["喜欢TA叫我老公/老婆","喜欢TA叫我专属昵称",3],
+  ["生气时想被哄","生气时想一个人静静",2],["见面前精心打扮","见面前随便穿穿",3],
+  ["记得第一次牵手的场景","有点记不清了",5],["TA身上的味道很安心","没特别注意过",5],
+  ["梦到过TA","还没梦到过",5],["每次分开都舍不得","分开也还好",5],
+  ["偷偷看TA手机","完全信任不看",5],["给TA的备注是全名","给TA的备注超肉麻",3],
+  ["合照存在相册里","合照设成屏保",3],["TA睡着时偷偷看过TA","TA睡着就自己玩了",3],
+  ["最喜欢TA笑的样子","最喜欢TA认真的样子",3],["先动心的是我","先动心的是TA",5]
 ];
 const TOTAL = 10;
-const CODE_VERSION = 1; // 题库版本，每次加题后 +1
+const CODE_VERSION = 2; // 题库版本：抽题算法或题库变动时必须 +1，否则旧密令会串题
 
 let S = {}; // 状态
 const $ = id => document.getElementById(id);
@@ -235,20 +267,42 @@ for (let i = 0; i < 10; i++) {
 }
 
 function show(id) {
-  ["home","inputScreen","quiz","codeScreen","result"].forEach(s => $(s).classList.add("hidden"));
+  ["home","inputScreen","quiz","codeScreen","result","handoff"].forEach(s => $(s).classList.add("hidden"));
   $(id).classList.remove("hidden");
 }
 function backHome(){ refreshResumeBtn(); show("home"); }
-function getNames() {
+// 首页的昵称（先答方/同屏模式用）与密令输入页的昵称（后答方从链接进来时用）
+function homeNames() {
   return [ $("nameMe").value.trim() || "我", $("nameTa").value.trim() || "TA" ];
 }
+function screenNames() {
+  return [ $("nameMe2").value.trim() || "我", $("nameTa2").value.trim() || "TA" ];
+}
+// 先答方答自己的题，不显示分数；后答方在猜 TA，显示实时默契值
+function updateQuizChrome() {
+  const isFirst = !!S.first;
+  $("scorePill").style.display = isFirst ? "none" : "inline-block";
+  $("firstHint").style.display = isFirst ? "block" : "none";
+}
+function quizTip() {
+  return S.first
+    ? (S.nameFirst || "我") + " 作答中（凭直觉选！）"
+    : (S.nameSecond || "我") + " 作答中（猜猜 " + (S.nameFirst || "TA") + " 选了什么～）";
+}
+// 第二个人是在"猜先答方会怎么选"，题面里的「我 / TA」指的是先答方视角，
+// 直接把代词换成昵称，避免后答方把"我"理解成自己而选反。
+function nameText(t) {
+  return String(t).replace(/TA/g, S.nameSecond || "TA").replace(/我/g, S.nameFirst || "我");
+}
+function qText(t) { return S.first ? t : nameText(t); }
 
 // ---------- 进度存档：防止答题中途误触刷新/返回导致前功尽弃 ----------
 function saveProgress() {
   try {
     if (!S || typeof S.idx !== "number" || S.idx <= 0 || S.idx >= TOTAL) return;
     localStorage.setItem(SAVE_KEY, JSON.stringify({
-      v: CODE_VERSION, names: S.names, seed: S.seed, first: !!S.first,
+      v: CODE_VERSION, names: S.names, seed: S.seed, first: !!S.first, same: !!S.same,
+      nameFirst: S.nameFirst, nameSecond: S.nameSecond,
       aBits: S.aBits | 0, bBits: S.bBits | 0, idx: S.idx, score: S.score | 0
     }));
   } catch (e) {}
@@ -278,25 +332,53 @@ function refreshResumeBtn() {
 function resumeSaved() {
   const s = readProgress();
   if (!s) { refreshResumeBtn(); return; }
-  S = { names: s.names || ["我", "TA"], seed: s.seed, first: !!s.first,
+  S = { names: s.names || ["我", "TA"], seed: s.seed, first: !!s.first, same: !!s.same,
+        nameFirst: s.nameFirst || (s.names || [])[0], nameSecond: s.nameSecond || (s.names || [])[1],
         aBits: s.aBits | 0, bBits: s.bBits | 0, idx: s.idx, score: s.score | 0 };
   S.qs = seededQuestions(S.seed);
-  $("nameMe").value = S.names[0] || "";
-  $("nameTa").value = S.names[1] || "";
-  $("whoTip").textContent = S.first
-    ? S.names[0] + " 作答中（凭直觉选！）"
-    : S.names[0] + " 作答中（猜猜 TA 选了什么～）";
+  if (S.names) { $("nameMe").value = S.names[0] || ""; $("nameTa").value = S.names[1] || ""; }
+  $("whoTip").textContent = quizTip();
   $("score").textContent = S.score;
   show("quiz");
+  updateQuizChrome();
   renderQ();
 }
 
 // 带种子随机洗牌，保证双方题目一致
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+// 分层抽题：先按主题分组，每个主题各抽 1 题，剩下的名额轮流补给不同主题，
+// 保证同一局里同一主题最多出现 2 题（避免抽到"吵架六连"这种扎堆情况）。
 function seededQuestions(seed) {
-  const arr = QUESTIONS.map((_,i)=>i), rnd = mulberry32(seed);
-  for (let i = arr.length-1; i>0; i--) { const j = Math.floor(rnd()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; }
-  return arr.slice(0, TOTAL);
+  const rnd = mulberry32(seed);
+  const shuffle = arr => {
+    for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; }
+    return arr;
+  };
+  const groups = {};
+  QUESTIONS.forEach((q, i) => {
+    const c = q[2] === undefined ? CATS.length - 1 : q[2];
+    (groups[c] = groups[c] || []).push(i);
+  });
+  const cats = shuffle(Object.keys(groups).map(Number));
+  const quota = {}, used = {};
+  cats.forEach(c => { shuffle(groups[c]); quota[c] = 1; used[c] = 0; });
+  let rest = TOTAL - cats.length;                       // 每主题先各占 1 个名额
+  for (let k = 0; rest > 0 && k < cats.length * 4; k++) {
+    const c = cats[k % cats.length];
+    if (groups[c].length > quota[c]) { quota[c]++; rest--; }
+  }
+  const picked = [];
+  for (let round = 0; picked.length < TOTAL && round < 20; round++) {
+    for (const c of cats) {
+      if (picked.length >= TOTAL) break;
+      if (used[c] < quota[c] && used[c] < groups[c].length) { picked.push(groups[c][used[c]]); used[c]++; }
+    }
+  }
+  if (picked.length < TOTAL) {                          // 题库太小等极端情况：用剩下的题补齐
+    const pool = shuffle(QUESTIONS.map((_, i) => i).filter(i => picked.indexOf(i) < 0));
+    while (picked.length < TOTAL && pool.length) picked.push(pool.pop());
+  }
+  return picked.slice(0, TOTAL);
 }
 
 // 密令编码：version(4位) + seed(12位) + answerBits(10位) → 6位 base36
@@ -306,7 +388,9 @@ function encodeA(seed, bits){
 }
 function decodeA(code){
   const v=parseInt(code.toLowerCase(),36);
-  if(isNaN(v)||v<0||v>=16777216) return null;
+  // 上限用编码结构本身的极限(16 个版本 × 2^22)，这样任何合法版本都能走到下面的版本校验，
+  // 而不是被当成乱码直接拒掉
+  if(isNaN(v)||v<0||v>=67108864) return null;
   const ver=Math.floor(v/4194304)%16, seed=Math.floor(v/1024)%4096, bits=v%1024;
   if(ver!==CODE_VERSION) return {error:"version"};
   return {seed, bits};
@@ -323,10 +407,49 @@ function decodeB(code){
   return {seed,aBits,bBits};
 }
 
+// ---------- 分享链接：把密令塞进网址，对方点一下即可开始，不用手抄乱码 ----------
+function shareBase() { return location.origin + location.pathname; }
+function buildInviteLink() {
+  const p = new URLSearchParams({ a: encodeA(S.seed, S.aBits), an: S.nameFirst || "", bn: S.nameSecond || "" });
+  return shareBase() + "#" + p.toString();
+}
+function buildReceiptLink() {
+  const p = new URLSearchParams({ r: encodeB(S.seed, S.aBits, S.bBits), an: S.nameFirst || "", bn: S.nameSecond || "" });
+  return shareBase() + "#" + p.toString();
+}
+function copyInviteLink(btn) { copyText(buildInviteLink(), btn, "复制邀请链接（推荐）"); }
+function copyReceiptLink(btn) { copyText(buildReceiptLink(), btn, "复制回执链接"); }
+
+// 打开带 #a=密令 / #r=回执 的链接时，自动填好昵称和密令并跳到输入页
+function consumeHash() {
+  const raw = location.hash.replace(/^#/, "");
+  if (!raw) return false;
+  let p;
+  try { p = new URLSearchParams(raw); } catch (e) { return false; }
+  const aCode = (p.get("a") || "").toUpperCase().replace(/[^0-9A-Z]/g, "");
+  const rCode = (p.get("r") || "").toUpperCase().replace(/[^0-9A-Z]/g, "");
+  if (!aCode && !rCode) return false;
+  const an = p.get("an") || "", bn = p.get("bn") || "";
+  try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+  if (aCode) {                       // 收到邀请的是"后答方"
+    $("nameMe").value = bn; $("nameTa").value = an;
+  } else {                           // 收到回执的是"先答方"
+    $("nameMe").value = an; $("nameTa").value = bn;
+  }
+  gotoInput(aCode ? "answer" : "review");
+  $("codeInput").value = aCode || rCode;
+  $("inputTip").innerHTML = aCode
+    ? "TA 邀请你玩默契大考验 💕<br>确认昵称后点「确认」，回答同样的 10 道题"
+    : "这是 TA 答题后的回执 📮<br>确认昵称后点「确认」，立刻看到你们的默契值";
+  return true;
+}
+
 let inputMode = "answer";
 function gotoInput(mode) {
   inputMode = mode;
-  S.names = getNames();
+  // 把首页填好的昵称带过来（从链接进来的用户直接在这一页填也行）
+  if ($("nameMe").value.trim()) $("nameMe2").value = $("nameMe").value.trim();
+  if ($("nameTa").value.trim()) $("nameTa2").value = $("nameTa").value.trim();
   $("inputTitle").textContent = mode === "answer" ? "输入默契密令" : "输入回执密令";
   $("inputTip").innerHTML = mode === "answer"
     ? "输入对方发给你的密令<br>你们将回答完全相同的 10 道题"
@@ -337,28 +460,55 @@ function gotoInput(mode) {
 
 function startAsFirst() {
   clearProgress();   // 开新一局，丢掉上一局的存档
-  S = { names: getNames(), seed: Math.floor(Math.random()*4096), first: true, aBits: 0, idx: 0, score: 0 };
+  const names = homeNames();
+  S = { names, nameFirst: names[0], nameSecond: names[1],
+        seed: Math.floor(Math.random()*4096), first: true, aBits: 0, idx: 0, score: 0 };
   S.qs = seededQuestions(S.seed);
-  $("whoTip").textContent = S.names[0] + " 作答中（凭直觉选！）";
-  show("quiz"); renderQ();
+  $("score").textContent = 0;
+  $("whoTip").textContent = quizTip();
+  show("quiz"); updateQuizChrome(); renderQ();
+}
+
+// 同屏模式：一部手机轮流答，A 答完直接交给 B，不需要密令/链接
+function startSameDevice() {
+  clearProgress();
+  const names = homeNames();
+  S = { names, nameFirst: names[0], nameSecond: names[1],
+        seed: Math.floor(Math.random()*4096), first: true, same: true,
+        aBits: 0, bBits: 0, idx: 0, score: 0 };
+  S.qs = seededQuestions(S.seed);
+  $("score").textContent = 0;
+  $("whoTip").textContent = quizTip();
+  show("quiz"); updateQuizChrome(); renderQ();
+}
+function startSecondOnSameDevice() {
+  S.first = false; S.locked = false;
+  S.bBits = 0; S.idx = 0; S.score = 0;
+  $("score").textContent = 0;
+  $("whoTip").textContent = quizTip();
+  show("quiz"); updateQuizChrome(); renderQ();
 }
 
 function submitCode() {
-  const code = $("codeInput").value.trim();
+  const raw = $("codeInput").value.trim();
   if (inputMode === "answer") {
-    const d = decodeA(code);
+    const d = decodeA(raw);
     if (!d) { alert("密令无效，请检查后再试"); return; }
     if (d.error === "version") { alert("这个密令来自旧版本题库，游戏已更新，请让对方重新生成密令～"); return; }
-    S = { names: getNames(), seed: d.seed, aBits: d.bits, first: false, bBits: 0, idx: 0, score: 0 };
+    const names = screenNames();     // 输入页是"我=后答方 / 对方=先答方"
+    S = { names, nameFirst: names[1], nameSecond: names[0],
+          seed: d.seed, aBits: d.bits, first: false, bBits: 0, idx: 0, score: 0 };
     clearProgress();
     S.qs = seededQuestions(S.seed);
-    $("whoTip").textContent = S.names[0] + " 作答中（猜猜 TA 选了什么～）";
-    show("quiz"); renderQ();
+    $("score").textContent = 0;
+    $("whoTip").textContent = quizTip();
+    show("quiz"); updateQuizChrome(); renderQ();
   } else {
-    const d = decodeB(code);
+    const d = decodeB(raw);
     if (!d) { alert("回执无效，请检查后再试"); return; }
     if (d.error === "version") { alert("这个回执来自旧版本题库，游戏已更新，请重新开始一局～"); return; }
-    S = { names: getNames(), seed: d.seed, aBits: d.aBits, bBits: d.bBits };
+    const names = screenNames();     // 看回执的是"先答方"
+    S = { names, nameFirst: names[0], nameSecond: names[1], seed: d.seed, aBits: d.aBits, bBits: d.bBits };
     S.qs = seededQuestions(S.seed);
     S.score = 0;
     for (let i=0;i<TOTAL;i++) if(((S.aBits>>i)&1)===((S.bBits>>i)&1)) S.score += 10;
@@ -369,8 +519,8 @@ function submitCode() {
 function renderQ() {
   const q = QUESTIONS[S.qs[S.idx]];
   $("stepBar").textContent = `第 ${S.idx+1} / ${TOTAL} 题`;
-  $("opt0").textContent = q[0];
-  $("opt1").textContent = q[1];
+  $("opt0").textContent = qText(q[0]);
+  $("opt1").textContent = qText(q[1]);
   $("opt0").className = "opt";
   $("opt1").className = "opt";
 }
@@ -417,10 +567,16 @@ function prev() {
 function finish() {
   clearProgress();   // 本局已结束，清掉存档
   if (S.first) {
+    if (S.same) {    // 同屏模式：交给对方接着答
+      $("handoffWho").textContent = S.nameFirst || "TA";
+      $("handoffNext").textContent = S.nameSecond || "对方";
+      show("handoff");
+      return;
+    }
     $("myCode").textContent = encodeA(S.seed, S.aBits);
     show("codeScreen");
   } else {
-    showResult(true);
+    showResult(!S.same);   // 同屏模式不需要回执
   }
 }
 
@@ -481,19 +637,53 @@ function showResult(showReceipt) {
   else                { emoji="🤪"; title="互补型选手"; detail="几乎完全不同，这就是传说中的互补吧"; }
   $("rEmoji").textContent = emoji;
   $("rTitle").textContent = title;
-  $("rScore").innerHTML = `${S.names[0]} ❤ ${S.names[1]}<br>默契值 <b>${pct}</b> 分 · ${detail}`;
+  $("rScore").innerHTML = `${S.nameFirst || "我"} ❤ ${S.nameSecond || "TA"}<br>默契值 <b>${pct}</b> 分 · ${detail}`;
+
+  // ---- 维度画像：按主题统计一致率，比一个总分更有信息量 ----
+  const dims = {};
+  let firstMiss = -1;
+  for (let i = 0; i < TOTAL; i++) {
+    const q = QUESTIONS[S.qs[i]];
+    const c = q[2] === undefined ? CATS.length - 1 : q[2];
+    const a = (S.aBits >> i) & 1, b = (S.bBits >> i) & 1, same = a === b;
+    dims[c] = dims[c] || { hit: 0, total: 0 };
+    dims[c].total++;
+    if (same) dims[c].hit++;
+    if (!same && firstMiss < 0) firstMiss = i;
+  }
+  const rows = Object.keys(dims)
+    .map(c => ({ name: CATS[c] || "其它", pct: Math.round(dims[c].hit / dims[c].total * 100) }))
+    .sort((x, y) => y.pct - x.pct);
+  const best = rows[0], worst = rows[rows.length - 1];
+  let note = "";
+  if (best) note = `最合拍的是「${best.name}」（${best.pct}%）`;
+  if (worst && rows.length > 1 && worst.pct < best.pct) note += `；「${worst.name}」是你们的默契盲区（${worst.pct}%），可以聊聊`;
+  if (firstMiss >= 0) {
+    const mq = QUESTIONS[S.qs[firstMiss]];
+    note += `<br>最需要聊一聊：<b>${nameText(mq[0])} / ${nameText(mq[1])}</b>`;
+  }
+  const dimBox = $("dimBox");
+  dimBox.innerHTML = "";
+  const wrap = document.createElement("div");
+  wrap.className = "dim-box";
+  wrap.innerHTML = '<div class="dim-title">🔍 默契维度画像</div>' +
+    rows.map(d => `<div class="dim-row"><span class="dim-name">${d.name}</span>` +
+                  `<span class="dim-bar"><i style="width:${d.pct}%"></i></span>` +
+                  `<span class="dim-pct">${d.pct}%</span></div>`).join("") +
+    `<div class="dim-note">${note}</div>`;
+  dimBox.appendChild(wrap);
 
   const list = $("cmpList"); list.innerHTML = "";
-  // aBits = 先答方，bBits = 后答方
-  const labelA = S.first === false ? S.names[1] : "先答方";
-  const labelB = S.first === false ? S.names[0] : "后答方";
+  // aBits 恒为"先答方"的答案，bBits 恒为"后答方"，标签用 S.nameFirst / S.nameSecond
+  const labelA = S.nameFirst || "先答方";
+  const labelB = S.nameSecond || "后答方";
   for (let i=0;i<TOTAL;i++) {
     const q = QUESTIONS[S.qs[i]];
     const a = (S.aBits>>i)&1, b = (S.bBits>>i)&1, same = a===b;
     const div = document.createElement("div");
     div.className = "cmp-item" + (same ? " same" : "");
-    div.innerHTML = `<div class="cmp-q">${same?"💗":"💭"} ${q[0]} / ${q[1]}</div>
-      <div class="cmp-a">${labelA}：<b>${q[a]}</b> ｜ ${labelB}：<b>${q[b]}</b></div>`;
+    div.innerHTML = `<div class="cmp-q">${same?"💗":"💭"} ${nameText(q[0])} / ${nameText(q[1])}</div>
+      <div class="cmp-a">${labelA}：<b>${nameText(q[a])}</b> ｜ ${labelB}：<b>${nameText(q[b])}</b></div>`;
     list.appendChild(div);
   }
 
@@ -510,6 +700,11 @@ function showResult(showReceipt) {
     btn.textContent = "复制回执密令";
     btn.onclick = () => copyText(receipt, btn, "复制回执密令");
     $("receiptArea").appendChild(btn);
+    const btn2 = document.createElement("button");
+    btn2.className = "btn";
+    btn2.textContent = "复制回执链接（推荐）";
+    btn2.onclick = () => copyText(buildReceiptLink(), btn2, "复制回执链接（推荐）");
+    $("receiptArea").appendChild(btn2);
   }
 }
 
@@ -521,7 +716,10 @@ window.addEventListener("beforeunload", e => {
   }
 });
 
-refreshResumeBtn();
+// 打开的是分享链接（#a=密令 / #r=回执）就直接进入输入页，否则回到首页
+if (!consumeHash()) refreshResumeBtn();
+// 页面已经开着时再点开分享链接（只变 hash）也能生效
+window.addEventListener("hashchange", () => { consumeHash(); });
 </script>
 </body>
 </html>
